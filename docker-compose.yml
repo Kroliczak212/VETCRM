@@ -1,0 +1,88 @@
+services:
+  # Backend Service (Node.js API)
+  backend:
+    build: ./backend
+    container_name: vetcrm-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_USER=vetuser
+      - DB_PASSWORD=vetpassword
+      - DB_NAME=vetcrm
+      - JWT_SECRET=change_this_to_something_secure_in_production
+      - FRONTEND_URL=http://localhost:5173
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - vetcrm-network
+
+  # Frontend Service (React + Vite)
+  frontend:
+    build: ./frontend
+    container_name: vetcrm-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - vetcrm-network
+
+  # Database Service (MySQL)
+  mysql:
+    image: mysql:8.0
+    container_name: vetcrm-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: vetcrm
+      MYSQL_USER: vetuser
+      MYSQL_PASSWORD: vetpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      # Mapujemy nowy plik bazy danych jako skrypt inicjalizacyjny
+      - "./vetcrm (2).sql:/docker-entrypoint-initdb.d/init.sql:ro"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - vetcrm-network
+
+  # Database GUI (phpMyAdmin)
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: vetcrm-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 128M
+    ports:
+      - "8081:80"
+    depends_on:
+      - mysql
+    networks:
+      - vetcrm-network
+
+volumes:
+  db_data:
+
+networks:
+  vetcrm-network:
+    driver: bridge
