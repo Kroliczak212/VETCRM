@@ -35,7 +35,6 @@ const getTransporter = () => {
  * @returns {Promise} - Nodemailer sendMail promise
  */
 const sendEmail = async (mailOptions) => {
-  // Check if email sending is enabled
   if (!emailConfig.sendEnabled) {
     console.log('📧 [DEV MODE] Email sending disabled. Would have sent:', {
       to: mailOptions.to,
@@ -44,7 +43,6 @@ const sendEmail = async (mailOptions) => {
     return { messageId: 'dev-mode-disabled' };
   }
 
-  // Add default from if not specified
   if (!mailOptions.from) {
     mailOptions.from = `"${emailConfig.from.name}" <${emailConfig.from.address}>`;
   }

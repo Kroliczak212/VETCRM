@@ -12,7 +12,6 @@ class NotificationsService {
     const { limit, offset, page } = parsePagination(query);
     const { isRead } = query;
 
-    // Build WHERE clause
     let whereClause = 'WHERE user_id = ?';
     const params = [userId];
 
@@ -21,14 +20,12 @@ class NotificationsService {
       params.push(isRead === 'true' || isRead === true ? 1 : 0);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM notifications ${whereClause}`,
       params
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated notifications
     const [notifications] = await pool.query(
       `SELECT id, user_id, title, message, type, is_read, created_at
        FROM notifications
@@ -79,7 +76,6 @@ class NotificationsService {
    * Mark notification as read
    */
   async markAsRead(notificationId, userId) {
-    // Verify notification exists and belongs to user
     await this.getById(notificationId, userId);
 
     await pool.query(
@@ -109,7 +105,6 @@ class NotificationsService {
    * Delete notification
    */
   async delete(notificationId, userId) {
-    // Verify notification exists and belongs to user
     await this.getById(notificationId, userId);
 
     await pool.query(

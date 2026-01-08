@@ -34,8 +34,24 @@ yarn-error.log*
 Thumbs.db
 
 # Project specific
-uploads/
 *.sql
 !vetcrm (2).sql
 .claude
 Do zrobienia.txt
+
+# Uploads - ignoruj pliki użytkowników, zachowaj strukturę folderów
+backend/uploads/**/*
+!backend/uploads/.gitkeep
+!backend/uploads/medical-records/
+backend/uploads/medical-records/*
+!backend/uploads/medical-records/.gitkeep
+
+# Backups - ignoruj pliki backup, zachowaj folder
+backups/*
+!backups/.gitkeep
+
+# Windows artifacts
+NUL
+nul
+
+DOKUMENTACJA_INZYNIERSKA/

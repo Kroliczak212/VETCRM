@@ -5,8 +5,8 @@ export interface WorkingHours {
   doctor_user_id: number;
   doctor_name: string;
   day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-  start_time: string; // Format: HH:MM:SS
-  end_time: string;   // Format: HH:MM:SS
+  start_time: string;
+  end_time: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -25,20 +25,20 @@ export interface WorkingHoursByDay {
 export interface CreateWorkingHoursData {
   doctorUserId: number;
   dayOfWeek: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-  startTime: string; // Format: HH:MM
-  endTime: string;   // Format: HH:MM
+  startTime: string;
+  endTime: string;
 }
 
 export interface BulkCreateWorkingHoursData {
   doctorUserId: number;
   days: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday')[];
-  startTime: string; // Format: HH:MM
-  endTime: string;   // Format: HH:MM
+  startTime: string;
+  endTime: string;
 }
 
 export interface UpdateWorkingHoursData {
-  startTime?: string; // Format: HH:MM
-  endTime?: string;   // Format: HH:MM
+  startTime?: string;
+  endTime?: string;
   isActive?: boolean;
 }
 
@@ -90,7 +90,6 @@ class WorkingHoursService {
 
 export const workingHoursService = new WorkingHoursService();
 
-// Named exports for direct function calls
 export const getWorkingHours = async (params?: {
   doctorId?: number;
   dayOfWeek?: string;

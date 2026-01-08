@@ -56,7 +56,6 @@ class SettingsService {
     const setting = settings[0];
     let value = setting.setting_value;
 
-    // Parse value based on type
     if (setting.setting_type === 'json') {
       try {
         value = JSON.parse(setting.setting_value);
@@ -82,7 +81,6 @@ class SettingsService {
    * Update setting by key
    */
   async update(key, value) {
-    // Check if setting exists
     const [existing] = await pool.query(
       'SELECT setting_type FROM settings WHERE setting_key = ?',
       [key]
@@ -92,7 +90,6 @@ class SettingsService {
       throw new NotFoundError('Setting');
     }
 
-    // Convert value to string based on type
     let stringValue = value;
     const settingType = existing[0].setting_type;
 
@@ -104,7 +101,6 @@ class SettingsService {
       stringValue = String(value);
     }
 
-    // Update setting
     await pool.query(
       'UPDATE settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
       [stringValue, key]
@@ -124,7 +120,6 @@ class SettingsService {
       const updatedSettings = [];
 
       for (const [key, value] of Object.entries(settingsData)) {
-        // Check if setting exists
         const [existing] = await connection.query(
           'SELECT setting_type FROM settings WHERE setting_key = ?',
           [key]
@@ -134,7 +129,6 @@ class SettingsService {
           continue; // Skip non-existent settings
         }
 
-        // Convert value to string based on type
         let stringValue = value;
         const settingType = existing[0].setting_type;
 
@@ -146,7 +140,6 @@ class SettingsService {
           stringValue = String(value);
         }
 
-        // Update setting
         await connection.query(
           'UPDATE settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
           [stringValue, key]
@@ -175,7 +168,6 @@ class SettingsService {
   async create(data) {
     const { key, value, type, description } = data;
 
-    // Check if setting already exists
     const [existing] = await pool.query(
       'SELECT setting_key FROM settings WHERE setting_key = ?',
       [key]
@@ -185,7 +177,6 @@ class SettingsService {
       throw new Error('Setting with this key already exists');
     }
 
-    // Convert value to string based on type
     let stringValue = value;
     if (type === 'json') {
       stringValue = JSON.stringify(value);

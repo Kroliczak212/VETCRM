@@ -14,7 +14,7 @@ class MedicalRecordsController {
 
   create = asyncHandler(async (req, res) => {
     const record = await medicalRecordsService.create(req.body, req.user.id);
-    res.status(201).json({ message: 'Medical record created successfully', record });
+    res.status(201).json({ message: 'Medical record created successfully', medicalRecord: record });
   });
 
   update = asyncHandler(async (req, res) => {
@@ -39,6 +39,24 @@ class MedicalRecordsController {
   deleteFile = asyncHandler(async (req, res) => {
     const result = await medicalRecordsService.deleteFile(req.params.fileId);
     res.json(result);
+  });
+
+  downloadFile = asyncHandler(async (req, res) => {
+    const { file, filePath } = await medicalRecordsService.getFileForDownload(
+      req.params.fileId,
+      req.user
+    );
+
+    res.setHeader('Content-Type', file.file_type || 'application/octet-stream');
+
+    // RFC 5987 encoding for filename (supports Polish/special characters)
+    const encodedFilename = encodeURIComponent(file.file_name);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.file_name}"; filename*=UTF-8''${encodedFilename}`
+    );
+
+    res.sendFile(filePath);
   });
 }
 

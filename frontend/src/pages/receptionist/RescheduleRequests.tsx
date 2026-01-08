@@ -20,13 +20,11 @@ const RescheduleRequests = () => {
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  // Fetch pending reschedule requests
   const { data: requests, isLoading } = useQuery({
     queryKey: ['reschedule-requests', 'pending'],
     queryFn: () => appointmentsService.getRescheduleRequests('pending'),
   });
 
-  // Mutation to approve reschedule
   const approveMutation = useMutation({
     mutationFn: (requestId: number) => appointmentsService.approveReschedule(requestId),
     onSuccess: () => {
@@ -39,7 +37,6 @@ const RescheduleRequests = () => {
     },
   });
 
-  // Mutation to reject reschedule
   const rejectMutation = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: number; reason?: string }) =>
       appointmentsService.rejectReschedule(requestId, reason),
@@ -271,7 +268,6 @@ const RescheduleRequests = () => {
         </Card>
       </div>
 
-      {/* Rejection Dialog */}
       <Dialog open={rejectionDialogOpen} onOpenChange={setRejectionDialogOpen}>
         <DialogContent>
           <DialogHeader>

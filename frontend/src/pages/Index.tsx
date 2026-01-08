@@ -41,7 +41,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -56,7 +55,6 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
       <section className="py-20 md:py-32 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-6 animate-fade-in">
@@ -92,7 +90,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="py-20 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 mb-12">
@@ -128,7 +125,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Roles Section */}
       <section className="py-20 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 mb-12">
@@ -184,7 +180,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="py-20 px-4 bg-gradient-hero">
         <div className="container mx-auto max-w-4xl text-center space-y-6">
           <h3 className="text-3xl md:text-4xl font-bold text-primary-foreground">
@@ -204,7 +199,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t bg-card py-12 px-4">
         <div className="container mx-auto max-w-6xl text-center text-muted-foreground">
           <p className="text-sm">

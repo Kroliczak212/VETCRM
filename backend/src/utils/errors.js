@@ -13,6 +13,15 @@ class AppError extends Error {
 }
 
 /**
+ * 400 Bad Request - Generic bad request
+ */
+class BadRequestError extends AppError {
+  constructor(message = 'Bad request') {
+    super(message, 400, 'BAD_REQUEST');
+  }
+}
+
+/**
  * 400 Bad Request - Validation errors
  */
 class ValidationError extends AppError {
@@ -26,8 +35,17 @@ class ValidationError extends AppError {
  * 401 Unauthorized - Authentication required
  */
 class UnauthorizedError extends AppError {
-  constructor(message = 'Authentication required') {
-    super(message, 401, 'UNAUTHORIZED');
+  constructor(message = 'Authentication required', code = 'UNAUTHORIZED') {
+    super(message, 401, code);
+  }
+}
+
+/**
+ * 403 Forbidden - Account deactivated
+ */
+class AccountDeactivatedError extends AppError {
+  constructor(message = 'Account has been deactivated. Contact support for assistance.') {
+    super(message, 403, 'ACCOUNT_DEACTIVATED');
   }
 }
 
@@ -69,8 +87,10 @@ class InternalError extends AppError {
 
 module.exports = {
   AppError,
+  BadRequestError,
   ValidationError,
   UnauthorizedError,
+  AccountDeactivatedError,
   ForbiddenError,
   NotFoundError,
   ConflictError,

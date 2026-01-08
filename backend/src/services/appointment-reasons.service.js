@@ -21,13 +21,11 @@ class AppointmentReasonsService {
     let whereClauses = [];
     let params = [];
 
-    // Filter by active status - convert string to boolean
     if (isActive !== undefined) {
       whereClauses.push('is_active = ?');
       params.push(isActive === 'true' || isActive === true || isActive === 1 ? 1 : 0);
     }
 
-    // Filter by vaccination type - convert string to boolean
     if (isVaccination !== undefined) {
       whereClauses.push('is_vaccination = ?');
       params.push(isVaccination === 'true' || isVaccination === true || isVaccination === 1 ? 1 : 0);
@@ -35,13 +33,11 @@ class AppointmentReasonsService {
 
     const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    // Get total count
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) as total FROM appointment_reasons ${whereSQL}`,
       params
     );
 
-    // Get paginated data
     const [rows] = await pool.query(
       `SELECT * FROM appointment_reasons
        ${whereSQL}
@@ -92,7 +88,7 @@ class AppointmentReasonsService {
    * Update appointment reason (admin only)
    */
   async update(id, data) {
-    await this.getById(id); // Verify exists
+    await this.getById(id);
 
     const { name, description, isVaccination, isActive, displayOrder } = data;
     const updates = [];
@@ -136,7 +132,7 @@ class AppointmentReasonsService {
    * Soft delete - sets is_active = false
    */
   async delete(id) {
-    await this.getById(id); // Verify exists
+    await this.getById(id);
 
     await pool.query(
       'UPDATE appointment_reasons SET is_active = FALSE WHERE id = ?',

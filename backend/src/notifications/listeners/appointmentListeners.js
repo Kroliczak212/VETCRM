@@ -15,7 +15,6 @@ notificationEvents.on(EVENTS.APPOINTMENT_CONFIRMED, async (data) => {
   try {
     const { appointmentId } = data;
 
-    // Fetch appointment details with client info
     const [rows] = await pool.query(
       `SELECT
         a.*,

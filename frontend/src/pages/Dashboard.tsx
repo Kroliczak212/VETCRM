@@ -45,7 +45,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? "w-64" : "w-20"
@@ -99,9 +98,7 @@ const Dashboard = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        {/* Header */}
         <header className="bg-card border-b border-border p-6">
           <div className="max-w-7xl mx-auto">
             <h1 className="text-3xl font-bold text-foreground mb-2">Panel Główny</h1>
@@ -112,7 +109,6 @@ const Dashboard = () => {
         </header>
 
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {stats.map((stat, index) => (
               <Card
@@ -135,7 +131,6 @@ const Dashboard = () => {
             ))}
           </div>
 
-          {/* Upcoming Appointments */}
           <Card className="animate-fade-in" style={{ animationDelay: "300ms" }}>
             <CardHeader>
               <CardTitle className="text-foreground">Nadchodzące Wizyty</CardTitle>
@@ -169,7 +164,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="animate-fade-in" style={{ animationDelay: "400ms" }}>
               <CardHeader>

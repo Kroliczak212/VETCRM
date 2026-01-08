@@ -1,7 +1,6 @@
 const mysql = require('mysql2/promise');
 const config = require('./index');
 
-// Create MySQL connection pool
 const pool = mysql.createPool(config.database);
 
 // Test connection on startup

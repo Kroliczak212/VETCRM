@@ -30,7 +30,6 @@ export default function DoctorSchedule() {
     notes: ""
   });
 
-  // Fetch all schedules for current doctor
   const { data: allSchedules, isLoading } = useQuery({
     queryKey: ['schedules', 'doctor', doctorId],
     queryFn: () => schedulesService.getAll({ doctorId }),
@@ -40,7 +39,6 @@ export default function DoctorSchedule() {
   const schedules = allSchedules?.data || [];
   const sortedSchedules = [...schedules].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Create schedule mutation
   const createScheduleMutation = useMutation({
     mutationFn: (data: CreateScheduleData) => schedulesService.create(data),
     onSuccess: () => {
@@ -68,7 +66,6 @@ export default function DoctorSchedule() {
     },
   });
 
-  // Delete schedule mutation
   const deleteScheduleMutation = useMutation({
     mutationFn: (id: number) => schedulesService.delete(id),
     onSuccess: () => {

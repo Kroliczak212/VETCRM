@@ -3,6 +3,7 @@ const { pool } = require('../config/database');
 const { NotFoundError, ConflictError } = require('../utils/errors');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 const { generateTemporaryPassword } = require('../utils/password');
+const emailService = require('./email.service');
 
 class ClientsService {
   /**
@@ -13,7 +14,6 @@ class ClientsService {
     const { limit, offset, page } = parsePagination(query);
     const { search } = query;
 
-    // Build WHERE clause for search
     let whereClause = 'WHERE u.role_id = 4';
     const params = [];
 
@@ -23,7 +23,6 @@ class ClientsService {
       params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM users u ${whereClause}`,
       params
@@ -72,7 +71,6 @@ class ClientsService {
 
     const client = clients[0];
 
-    // Get client's pets
     const [pets] = await pool.query(
       `SELECT id, name, species, breed, sex, date_of_birth, notes, created_at
        FROM pets
@@ -92,7 +90,6 @@ class ClientsService {
   async create(data) {
     const { email, password, firstName, lastName, phone, address, notes } = data;
 
-    // Check if email already exists
     const [existing] = await pool.query(
       'SELECT id FROM users WHERE email = ?',
       [email]
@@ -111,10 +108,8 @@ class ClientsService {
       const temporaryPassword = password || generateTemporaryPassword(email, phone);
       const mustChangePassword = !password; // Force change if auto-generated
 
-      // Hash password
       const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
-      // Insert user with client role (role_id = 4)
       const [result] = await connection.query(
         `INSERT INTO users (email, password_hash, first_name, last_name, phone, role_id, must_change_password)
          VALUES (?, ?, ?, ?, ?, 4, ?)`,
@@ -123,7 +118,6 @@ class ClientsService {
 
       const clientId = result.insertId;
 
-      // Insert client details
       await connection.query(
         `INSERT INTO client_details (user_id, address, notes)
          VALUES (?, ?, ?)`,
@@ -139,6 +133,14 @@ class ClientsService {
       // This allows receptionist to see it and share with client
       if (mustChangePassword) {
         client.temporaryPassword = temporaryPassword;
+
+        try {
+          await emailService.sendWelcomeEmail(client, temporaryPassword);
+          console.log(`✓ Welcome email sent to new client: ${client.email}`);
+        } catch (emailError) {
+          // Log error but don't fail client creation
+          console.error(`✗ Failed to send welcome email to ${client.email}:`, emailError.message);
+        }
       }
 
       return client;
@@ -157,14 +159,12 @@ class ClientsService {
   async update(clientId, data) {
     const { firstName, lastName, phone, address, notes, password } = data;
 
-    // Check if client exists
     await this.getById(clientId);
 
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
 
-      // Build user update query
       const userUpdates = [];
       const userParams = [];
 
@@ -193,7 +193,6 @@ class ClientsService {
         );
       }
 
-      // Update client details
       const detailUpdates = [];
       const detailParams = [];
 
@@ -229,7 +228,6 @@ class ClientsService {
    * Delete client
    */
   async delete(clientId) {
-    // Check if client exists
     await this.getById(clientId);
 
     const connection = await pool.getConnection();
@@ -239,10 +237,8 @@ class ClientsService {
       // Note: Check for related records (pets, appointments) before deletion
       // For now, FK constraints will prevent deletion if pets exist
 
-      // Delete client details
       await connection.query('DELETE FROM client_details WHERE user_id = ?', [clientId]);
 
-      // Delete user
       await connection.query('DELETE FROM users WHERE id = ?', [clientId]);
 
       await connection.commit();
@@ -260,7 +256,6 @@ class ClientsService {
    * Get client's pets
    */
   async getPets(clientId) {
-    // Verify client exists
     await this.getById(clientId);
 
     const [pets] = await pool.query(

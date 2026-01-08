@@ -21,7 +21,6 @@ const Login = () => {
     try {
       const response = await authService.login({ email, password });
 
-      // Check if password change is required
       if (response.requiresPasswordChange) {
         toast.info("Please change your temporary password");
         navigate("/change-password");
@@ -30,7 +29,6 @@ const Login = () => {
 
       toast.success("Zalogowano pomyślnie!");
 
-      // Redirect based on role
       const roleRoutes: Record<string, string> = {
         admin: "/admin",
         receptionist: "/receptionist",
@@ -52,7 +50,6 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-        {/* Left Side - Branding */}
         <div className="hidden lg:flex flex-col justify-center space-y-6 animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="h-16 w-16 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
@@ -90,7 +87,6 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Right Side - Login Form */}
         <Card className="shadow-elevated border-border animate-fade-in" style={{ animationDelay: "200ms" }}>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-foreground">Witaj ponownie</CardTitle>
@@ -133,9 +129,14 @@ const Login = () => {
                   <input type="checkbox" className="rounded" />
                   <span className="text-muted-foreground">Zapamiętaj mnie</span>
                 </label>
-                <a href="#" className="text-primary hover:underline">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => navigate("/forgot-password")}
+                  className="text-primary p-0 h-auto hover:underline"
+                >
                   Zapomniałeś hasła?
-                </a>
+                </Button>
               </div>
 
               <Button

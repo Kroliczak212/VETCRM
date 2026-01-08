@@ -261,18 +261,21 @@ CREATE TABLE `notifications` (
 -- --------------------------------------------------------
 
 --
--- Struktura tabeli dla tabeli `payments`
+-- Struktura tabeli dla tabeli `email_queue`
 --
 
-CREATE TABLE `payments` (
+CREATE TABLE `email_queue` (
   `id` int NOT NULL,
-  `appointment_id` int NOT NULL,
-  `amount_due` decimal(10,2) NOT NULL,
-  `amount_paid` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `status` enum('unpaid','partially_paid','paid') NOT NULL DEFAULT 'unpaid',
-  `payment_method` enum('cash','card','online') NOT NULL,
-  `payment_date` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `to_email` varchar(255) NOT NULL,
+  `subject` varchar(500) NOT NULL,
+  `html_body` text NOT NULL,
+  `status` enum('pending','sent','failed') NOT NULL DEFAULT 'pending',
+  `retry_count` int NOT NULL DEFAULT '0',
+  `max_retries` int NOT NULL DEFAULT '3',
+  `next_retry_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sent_at` datetime DEFAULT NULL,
+  `error_message` text
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -668,11 +671,12 @@ ALTER TABLE `notifications`
   ADD KEY `idx_notifications_type` (`type`);
 
 --
--- Indeksy dla tabeli `payments`
+-- Indeksy dla tabeli `email_queue`
 --
-ALTER TABLE `payments`
+ALTER TABLE `email_queue`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_payments_appt` (`appointment_id`);
+  ADD KEY `idx_email_queue_status` (`status`),
+  ADD KEY `idx_email_queue_next_retry` (`next_retry_at`);
 
 --
 -- Indeksy dla tabeli `penalties`
@@ -810,9 +814,9 @@ ALTER TABLE `notifications`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT dla tabeli `payments`
+-- AUTO_INCREMENT dla tabeli `email_queue`
 --
-ALTER TABLE `payments`
+ALTER TABLE `email_queue`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
@@ -928,12 +932,6 @@ ALTER TABLE `medical_records`
 --
 ALTER TABLE `notifications`
   ADD CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Ograniczenia dla tabeli `payments`
---
-ALTER TABLE `payments`
-  ADD CONSTRAINT `fk_payments_appt` FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Ograniczenia dla tabeli `penalties`

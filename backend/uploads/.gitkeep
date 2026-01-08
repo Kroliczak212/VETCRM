@@ -1,0 +1,3 @@
+# Ten plik zapewnia, że folder uploads istnieje w repozytorium.
+# Pliki użytkowników są ignorowane przez .gitignore.
+# W produkcji folder jest montowany jako Docker named volume (uploads_data).

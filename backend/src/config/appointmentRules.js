@@ -18,8 +18,6 @@ const APPOINTMENT_RULES = {
   // Fees (in PLN)
   LATE_CANCELLATION_FEE: 50.00,        // 50 PLN for late cancellation
 
-  // Helper functions
-
   /**
    * Calculate hours until appointment
    * @param {Date|string} scheduledAt - Appointment scheduled time
@@ -86,7 +84,6 @@ const APPOINTMENT_RULES = {
       };
     }
 
-    // More than CANCEL_NO_PENALTY_HOURS
     return {
       canCancel: true,
       status: 'cancelled',

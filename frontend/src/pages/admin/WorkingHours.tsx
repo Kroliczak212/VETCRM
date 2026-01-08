@@ -47,7 +47,6 @@ export default function WorkingHoursManagement() {
     endTime: "16:00"
   });
 
-  // Fetch all doctors
   const { data: usersData } = useQuery({
     queryKey: ['users', 'doctors'],
     queryFn: () => usersService.getAll({ role: 'doctor', limit: 100 }),
@@ -55,20 +54,17 @@ export default function WorkingHoursManagement() {
 
   const doctors = usersData?.data?.filter((u: User) => u.role_name === 'doctor') || [];
 
-  // Fetch all working hours
   const { data: allWorkingHours, isLoading: hoursLoading } = useQuery({
     queryKey: ['working-hours', 'all'],
     queryFn: () => workingHoursService.getAll(),
   });
 
-  // Fetch working hours for selected doctor
   const { data: doctorWorkingHours, isLoading: doctorHoursLoading } = useQuery({
     queryKey: ['working-hours', 'doctor', selectedDoctor],
     queryFn: () => workingHoursService.getByDoctorId(selectedDoctor!),
     enabled: !!selectedDoctor,
   });
 
-  // Create working hours mutation
   const createWorkingHoursMutation = useMutation({
     mutationFn: (data: CreateWorkingHoursData) => workingHoursService.create(data),
     onSuccess: () => {
@@ -91,7 +87,6 @@ export default function WorkingHoursManagement() {
     },
   });
 
-  // Bulk create working hours mutation
   const bulkCreateWorkingHoursMutation = useMutation({
     mutationFn: (data: BulkCreateWorkingHoursData) => workingHoursService.bulkCreate(data),
     onSuccess: (data) => {
@@ -117,7 +112,6 @@ export default function WorkingHoursManagement() {
     },
   });
 
-  // Update working hours mutation
   const updateWorkingHoursMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: { startTime: string; endTime: string } }) =>
       workingHoursService.update(id, data),
@@ -136,7 +130,6 @@ export default function WorkingHoursManagement() {
     },
   });
 
-  // Toggle active status mutation
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       workingHoursService.update(id, { isActive }),
@@ -156,7 +149,6 @@ export default function WorkingHoursManagement() {
     },
   });
 
-  // Delete working hours mutation
   const deleteWorkingHoursMutation = useMutation({
     mutationFn: (id: number) => workingHoursService.delete(id),
     onSuccess: () => {
@@ -230,6 +222,32 @@ export default function WorkingHoursManagement() {
         days: [...currentDays, day]
       });
     }
+  };
+
+  // Calculate total hours for a day from working hours slots
+  const calculateTotalHours = (hoursForDay: WorkingHours[]): number => {
+    return hoursForDay.reduce((total, slot) => {
+      const [startH, startM] = slot.start_time.split(':').map(Number);
+      const [endH, endM] = slot.end_time.split(':').map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+      const diffMinutes = endMinutes - startMinutes;
+      return total + diffMinutes / 60;
+    }, 0);
+  };
+
+  // Format hours with proper Polish grammar
+  const formatHoursLabel = (hours: number): string => {
+    if (hours === 0) return "0 godzin";
+    if (hours === 1) return "1 godzina";
+    if (hours >= 2 && hours <= 4) return `${hours} godziny`;
+    if (hours >= 5 && hours <= 21) return `${hours} godzin`;
+    // For fractions or larger numbers, use "godz." abbreviation
+    const lastDigit = Math.floor(hours) % 10;
+    const lastTwoDigits = Math.floor(hours) % 100;
+    if (lastTwoDigits >= 12 && lastTwoDigits <= 14) return `${hours} godzin`;
+    if (lastDigit >= 2 && lastDigit <= 4) return `${hours} godziny`;
+    return `${hours} godzin`;
   };
 
   return (
@@ -407,7 +425,6 @@ export default function WorkingHoursManagement() {
           </div>
         </div>
 
-        {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -451,7 +468,6 @@ export default function WorkingHoursManagement() {
           </DialogContent>
         </Dialog>
 
-        {/* Doctor selector */}
         <div className="mb-6">
           <Label>Wybierz lekarza, aby zobaczyć jego harmonogram</Label>
           <Select value={selectedDoctor?.toString() || ""} onValueChange={(value) => setSelectedDoctor(parseInt(value))}>
@@ -469,7 +485,6 @@ export default function WorkingHoursManagement() {
           </Select>
         </div>
 
-        {/* Working hours display */}
         {selectedDoctor && (
           <div className="space-y-4">
             {doctorHoursLoading ? (
@@ -486,7 +501,7 @@ export default function WorkingHoursManagement() {
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-lg">{dayNames[day]}</CardTitle>
                           <Badge variant={hoursForDay.length > 0 ? "default" : "secondary"}>
-                            {hoursForDay.length} godzin
+                            {formatHoursLabel(calculateTotalHours(hoursForDay))}
                           </Badge>
                         </div>
                       </CardHeader>

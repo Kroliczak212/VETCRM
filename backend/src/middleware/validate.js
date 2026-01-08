@@ -19,7 +19,6 @@ const { ValidationError } = require('../utils/errors');
 const validate = (schema) => {
   return (req, res, next) => {
     try {
-      // Parse and validate request data
       schema.parse({
         body: req.body,
         query: req.query,
@@ -28,7 +27,6 @@ const validate = (schema) => {
       next();
     } catch (err) {
       if (err instanceof z.ZodError) {
-        // Transform Zod errors to our format
         const errors = err.errors.map((e) => ({
           field: e.path.join('.'),
           message: e.message,

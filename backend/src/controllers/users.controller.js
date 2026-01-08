@@ -28,7 +28,7 @@ class UsersController {
    * @access  Private (admin only)
    */
   create = asyncHandler(async (req, res) => {
-    const user = await usersService.create(req.body);
+    const user = await usersService.create(req.body, req.user?.id, req);
     res.status(201).json({
       message: 'User created successfully',
       user
@@ -41,7 +41,7 @@ class UsersController {
    * @access  Private (admin only)
    */
   update = asyncHandler(async (req, res) => {
-    const user = await usersService.update(req.params.id, req.body);
+    const user = await usersService.update(req.params.id, req.body, req.user?.id, req);
     res.json({
       message: 'User updated successfully',
       user
@@ -50,11 +50,11 @@ class UsersController {
 
   /**
    * @route   DELETE /api/users/:id
-   * @desc    Delete user
+   * @desc    Delete user (soft delete if has history, hard delete otherwise)
    * @access  Private (admin only)
    */
   delete = asyncHandler(async (req, res) => {
-    const result = await usersService.delete(req.params.id);
+    const result = await usersService.delete(req.params.id, req.user?.id, req);
     res.json(result);
   });
 
@@ -65,9 +65,22 @@ class UsersController {
    */
   updateIsActive = asyncHandler(async (req, res) => {
     const { isActive } = req.body;
-    const user = await usersService.updateIsActive(req.params.id, isActive);
+    const user = await usersService.updateIsActive(req.params.id, isActive, req.user?.id, req);
     res.json({
       message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
+      user
+    });
+  });
+
+  /**
+   * @route   POST /api/users/:id/restore
+   * @desc    Restore a soft-deleted user
+   * @access  Private (admin only)
+   */
+  restore = asyncHandler(async (req, res) => {
+    const user = await usersService.restore(req.params.id, req.user?.id, req);
+    res.json({
+      message: 'User restored successfully',
       user
     });
   });

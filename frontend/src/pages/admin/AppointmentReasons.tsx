@@ -33,13 +33,11 @@ const AppointmentReasons = () => {
 
   const [editReason, setEditReason] = useState<Partial<UpdateAppointmentReasonData>>({});
 
-  // Fetch appointment reasons
   const { data: reasonsData, isLoading } = useQuery({
     queryKey: ['appointment-reasons', 'admin'],
     queryFn: () => appointmentReasonsService.getAll({ limit: 100 }),
   });
 
-  // Create reason mutation
   const createReasonMutation = useMutation({
     mutationFn: (data: CreateAppointmentReasonData) => appointmentReasonsService.create(data),
     onSuccess: () => {
@@ -53,7 +51,6 @@ const AppointmentReasons = () => {
     },
   });
 
-  // Update reason mutation
   const updateReasonMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateAppointmentReasonData }) =>
       appointmentReasonsService.update(id, data),
@@ -67,7 +64,6 @@ const AppointmentReasons = () => {
     },
   });
 
-  // Delete (deactivate) reason mutation
   const deleteReasonMutation = useMutation({
     mutationFn: (id: number) => appointmentReasonsService.delete(id),
     onSuccess: () => {
@@ -112,7 +108,6 @@ const AppointmentReasons = () => {
     }
   };
 
-  // Sort by display_order
   const sortedReasons = [...reasons].sort((a, b) => a.display_order - b.display_order);
 
   return (
@@ -242,7 +237,6 @@ const AppointmentReasons = () => {
           <p className="text-center text-muted-foreground py-12">Brak powodów wizyt. Dodaj pierwszy powód.</p>
         )}
 
-        {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
             <DialogHeader>

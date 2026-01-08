@@ -1,11 +1,9 @@
 import { apiClient } from '@/lib/api-client';
 
-// Admin Dashboard Types
 export interface AdminStatistics {
   totalStaff: number;
   activeDoctors: number;
   totalAppointments: number;
-  totalRevenue: number;
   appointmentsByStatus: Array<{ status: string; count: number }>;
   recentActivity: Array<{
     id: number;
@@ -16,15 +14,12 @@ export interface AdminStatistics {
     pet_name: string;
     doctor_name: string;
   }>;
-  monthlyRevenue: Array<{ month: string; revenue: number }>;
 }
 
-// Receptionist Dashboard Types
 export interface ReceptionistStatistics {
   todayAppointments: number;
   pendingAppointments: number;
   newClientsThisMonth: number;
-  unpaidPayments: number;
   appointmentsList: Array<{
     id: number;
     scheduled_at: string;
@@ -39,7 +34,6 @@ export interface ReceptionistStatistics {
   }>;
 }
 
-// Doctor Dashboard Types
 export interface DoctorStatistics {
   todayAppointments: number;
   completedToday: number;
@@ -64,50 +58,32 @@ export interface DoctorStatistics {
   }>;
 }
 
-// Client Dashboard Types
 export interface ClientStatistics {
   totalPets: number;
   upcomingAppointments: number;
   totalAppointments: number;
-  unpaidBills: number;
-  unpaidAmount: number;
 }
 
-/**
- * Get admin dashboard statistics
- */
 export const getAdminStatistics = async (): Promise<AdminStatistics> => {
   const response = await apiClient.get<AdminStatistics>('/dashboard/admin');
   return response.data;
 };
 
-/**
- * Get receptionist dashboard statistics
- */
 export const getReceptionistStatistics = async (): Promise<ReceptionistStatistics> => {
   const response = await apiClient.get<ReceptionistStatistics>('/dashboard/receptionist');
   return response.data;
 };
 
-/**
- * Get doctor dashboard statistics
- */
 export const getDoctorStatistics = async (): Promise<DoctorStatistics> => {
   const response = await apiClient.get<DoctorStatistics>('/dashboard/doctor');
   return response.data;
 };
 
-/**
- * Get client dashboard statistics
- */
 export const getClientStatistics = async (): Promise<ClientStatistics> => {
   const response = await apiClient.get<ClientStatistics>('/dashboard/client');
   return response.data;
 };
 
-/**
- * Helper: Format status for display
- */
 export const formatAppointmentStatus = (status: string): string => {
   const statusMap: Record<string, string> = {
     proposed: 'Zaproponowana',
@@ -120,9 +96,6 @@ export const formatAppointmentStatus = (status: string): string => {
   return statusMap[status] || status;
 };
 
-/**
- * Helper: Get status color
- */
 export const getStatusColor = (status: string): string => {
   const colorMap: Record<string, string> = {
     proposed: 'bg-blue-100 text-blue-800',

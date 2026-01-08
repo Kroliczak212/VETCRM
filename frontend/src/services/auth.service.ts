@@ -18,16 +18,36 @@ export interface User {
 }
 
 export interface LoginResponse {
+  requiresPasswordChange: boolean;
   message: string;
   user: User;
   token: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface VerifyTokenResponse {
+  valid: boolean;
+}
+
+export interface UpdateProfileData {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: string;
 }
 
 class AuthService {
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     const { data } = await apiClient.post<LoginResponse>('/auth/login', credentials);
 
-    // Store token and user
     setAuthToken(data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
 
@@ -59,6 +79,33 @@ class AuthService {
     const token = localStorage.getItem('auth_token');
     const user = this.getCurrentUser();
     return !!token && !!user;
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const { data } = await apiClient.post<{ message: string }>('/auth/forgot-password', { email });
+    return data;
+  }
+
+  async verifyResetToken(token: string): Promise<VerifyTokenResponse> {
+    const { data } = await apiClient.get<VerifyTokenResponse>(`/auth/verify-reset-token/${token}`);
+    return data;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const { data } = await apiClient.post<{ message: string }>('/auth/reset-password', {
+      token,
+      newPassword
+    });
+    return data;
+  }
+
+  async updateProfile(profileData: UpdateProfileData): Promise<{ message: string; user: User }> {
+    const { data } = await apiClient.put<{ message: string; user: User }>('/auth/profile', profileData);
+
+    // Update local storage with new user data
+    localStorage.setItem('user', JSON.stringify(data.user));
+
+    return data;
   }
 }
 

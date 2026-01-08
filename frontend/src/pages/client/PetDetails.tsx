@@ -15,21 +15,18 @@ export default function PetDetails() {
   const navigate = useNavigate();
   const petId = parseInt(id || '0');
 
-  // Fetch pet details
   const { data: pet, isLoading: petLoading } = useQuery({
     queryKey: ['pet', petId],
     queryFn: () => petsService.getById(petId),
     enabled: !!petId,
   });
 
-  // Fetch appointments for this pet
   const { data: appointmentsData, isLoading: appointmentsLoading } = useQuery({
     queryKey: ['appointments', 'pet', petId],
     queryFn: () => appointmentsService.getAll({ petId, limit: 100 }),
     enabled: !!petId,
   });
 
-  // Fetch vaccinations for this pet
   const { data: vaccinationsData, isLoading: vaccinationsLoading } = useQuery({
     queryKey: ['vaccinations', 'pet', petId],
     queryFn: () => vaccinationsService.getAll({ petId, limit: 100 }),
@@ -39,18 +36,14 @@ export default function PetDetails() {
   const allAppointments = appointmentsData?.data || [];
   const vaccinations = vaccinationsData?.data || [];
 
-  // Filter appointments for this specific pet
   const petAppointments = allAppointments.filter((apt: Appointment) => apt.pet_id === petId);
 
-  // Get upcoming appointments
   const upcomingAppointments = petAppointments
     .filter((apt: Appointment) => !['completed', 'cancelled', 'cancelled_late'].includes(apt.status))
     .sort((a: Appointment, b: Appointment) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-  // Get medical history from completed appointments
   const medicalHistory: MedicalRecord[] = pet?.medical_history || [];
 
-  // Helper: Calculate age from birth date
   const calculateAge = (birthDate?: string): string => {
     if (!birthDate) return "Nieznany wiek";
     const birth = new Date(birthDate);
@@ -69,12 +62,10 @@ export default function PetDetails() {
     }
   };
 
-  // Helper: Format date to Polish locale
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("pl-PL");
   };
 
-  // Helper: Format time to Polish locale
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString("pl-PL", { hour: '2-digit', minute: '2-digit' });
   };

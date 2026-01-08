@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// Import route modules
 const authRoutes = require('./auth.routes');
 const usersRoutes = require('./users.routes');
 const clientsRoutes = require('./clients.routes');
@@ -13,14 +12,12 @@ const schedulesRoutes = require('./schedules.routes');
 const workingHoursRoutes = require('./working-hours.routes');
 const medicalRecordsRoutes = require('./medical-records.routes');
 const notificationsRoutes = require('./notifications.routes');
-const paymentsRoutes = require('./payments.routes');
 const penaltiesRoutes = require('./penalties.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const settingsRoutes = require('./settings.routes');
 const appointmentReasonsRoutes = require('./appointment-reasons.routes');
 const vaccinationTypesRoutes = require('./vaccination-types.routes');
 
-// Mount routes
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/clients', clientsRoutes);
@@ -32,7 +29,6 @@ router.use('/schedules', schedulesRoutes);
 router.use('/working-hours', workingHoursRoutes);
 router.use('/medical-records', medicalRecordsRoutes);
 router.use('/notifications', notificationsRoutes);
-router.use('/payments', paymentsRoutes);
 router.use('/penalties', penaltiesRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/settings', settingsRoutes);

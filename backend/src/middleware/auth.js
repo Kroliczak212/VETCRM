@@ -1,9 +1,10 @@
 const jwt = require('jsonwebtoken');
 const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
 const config = require('../config');
+const authService = require('../services/auth.service');
 
 /**
- * Authentication middleware - verifies JWT token
+ * Authentication middleware - verifies JWT token and checks blacklist
  * Attaches user data to req.user
  *
  * @param {Array<string>} allowedRoles - Optional array of roles that can access the route
@@ -17,7 +18,7 @@ const config = require('../config');
  * router.post('/appointments', authenticate(['doctor', 'receptionist']), createAppointment);
  */
 const authenticate = (allowedRoles = []) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       // Extract token from Authorization header
       const authHeader = req.headers.authorization;
@@ -29,6 +30,14 @@ const authenticate = (allowedRoles = []) => {
 
       // Verify token
       const decoded = jwt.verify(token, config.jwt.secret);
+
+      // Check if token is blacklisted (logged out)
+      if (decoded.jti) {
+        const isBlacklisted = await authService.isTokenBlacklisted(decoded.jti);
+        if (isBlacklisted) {
+          throw new UnauthorizedError('Token has been revoked');
+        }
+      }
 
       // Attach user data to request
       req.user = {

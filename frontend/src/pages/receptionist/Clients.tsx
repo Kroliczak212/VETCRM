@@ -78,13 +78,11 @@ const Clients = () => {
     notes: "",
   });
 
-  // Fetch clients
   const { data: clientsData, isLoading, error } = useQuery({
     queryKey: ['clients', searchQuery],
     queryFn: () => clientsService.getAll({ search: searchQuery, limit: 100 }),
   });
 
-  // Create client mutation
   const createClientMutation = useMutation({
     mutationFn: (data: CreateClientData) => clientsService.create(data),
     onSuccess: (response) => {
@@ -122,7 +120,6 @@ const Clients = () => {
   });
 
   const handleAddClient = () => {
-    // Validate and sanitize form data
     const validationResult = validateAndSanitize(createClientSchema, newClient);
 
     if (!validationResult.success) {
@@ -140,7 +137,6 @@ const Clients = () => {
       return;
     }
 
-    // Submit validated and sanitized data
     createClientMutation.mutate(validationResult.data);
   };
 

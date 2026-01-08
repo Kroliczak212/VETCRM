@@ -76,7 +76,6 @@ class WorkingHoursService {
   async getByDoctorId(doctorId) {
     const workingHours = await this.getAll({ doctorId, isActive: true });
 
-    // Group by day of week
     const byDay = {
       monday: [],
       tuesday: [],
@@ -101,7 +100,6 @@ class WorkingHoursService {
   async create(data) {
     const { doctorUserId, dayOfWeek, startTime, endTime, isActive = true } = data;
 
-    // Validate doctor exists and has role 'doctor'
     const [doctors] = await pool.query(
       `SELECT u.id
        FROM users u
@@ -114,7 +112,6 @@ class WorkingHoursService {
       throw new ValidationError('User is not a doctor');
     }
 
-    // Validate day of week
     const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     if (!validDays.includes(dayOfWeek)) {
       throw new ValidationError(`Invalid day of week. Must be one of: ${validDays.join(', ')}`);
@@ -126,16 +123,13 @@ class WorkingHoursService {
       throw new ValidationError('Invalid time format. Use HH:MM or HH:MM:SS (e.g., 08:00 or 08:00:00)');
     }
 
-    // Add :00 if only HH:MM format
     const formattedStartTime = startTime.length === 5 ? `${startTime}:00` : startTime;
     const formattedEndTime = endTime.length === 5 ? `${endTime}:00` : endTime;
 
-    // Validate start_time < end_time
     if (formattedStartTime >= formattedEndTime) {
       throw new ValidationError('Start time must be before end time');
     }
 
-    // Check for overlapping time slots for same doctor on same day
     const [overlaps] = await pool.query(
       `SELECT id FROM working_hours
        WHERE doctor_user_id = ?
@@ -153,7 +147,6 @@ class WorkingHoursService {
       throw new ConflictError('Overlapping working hours already exist for this day');
     }
 
-    // Insert new working hours
     const [result] = await pool.query(
       `INSERT INTO working_hours (doctor_user_id, day_of_week, start_time, end_time, is_active)
        VALUES (?, ?, ?, ?, ?)`,
@@ -201,7 +194,6 @@ class WorkingHoursService {
   async update(workingHourId, data) {
     const { dayOfWeek, startTime, endTime, isActive } = data;
 
-    // Verify exists
     const existing = await this.getById(workingHourId);
 
     const updates = [];
@@ -241,7 +233,6 @@ class WorkingHoursService {
       params.push(isActive ? 1 : 0);
     }
 
-    // Validate start_time < end_time if both provided
     const finalStartTime = startTime ? (startTime.length === 5 ? `${startTime}:00` : startTime) : existing.start_time;
     const finalEndTime = endTime ? (endTime.length === 5 ? `${endTime}:00` : endTime) : existing.end_time;
     if (finalStartTime >= finalEndTime) {

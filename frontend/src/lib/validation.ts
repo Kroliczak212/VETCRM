@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-// ========================================
-// APPOINTMENT VALIDATION SCHEMAS
-// ========================================
-
 export const appointmentFormSchema = z.object({
   petId: z.number({
     required_error: 'Zwierzę jest wymagane',
@@ -40,10 +36,6 @@ export const appointmentFormSchema = z.object({
 });
 
 export type AppointmentFormData = z.infer<typeof appointmentFormSchema>;
-
-// ========================================
-// CLIENT VALIDATION SCHEMAS
-// ========================================
 
 export const phoneRegex = /^[\d\s\-\+\(\)]+$/;
 export const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -88,10 +80,6 @@ export const clientFormSchema = z.object({
 
 export type ClientFormData = z.infer<typeof clientFormSchema>;
 
-// ========================================
-// PET VALIDATION SCHEMAS
-// ========================================
-
 export const petFormSchema = z.object({
   name: z.string({
     required_error: 'Imię zwierzęcia jest wymagane',
@@ -115,7 +103,7 @@ export const petFormSchema = z.object({
 
   date_of_birth: z.string()
     .refine((val) => {
-      if (!val) return true; // Optional field
+      if (!val) return true;
       const date = new Date(val);
       return !isNaN(date.getTime()) && date <= new Date();
     }, 'Data urodzenia nie może być w przyszłości')
@@ -149,10 +137,6 @@ export const petFormSchema = z.object({
 });
 
 export type PetFormData = z.infer<typeof petFormSchema>;
-
-// ========================================
-// USER/STAFF VALIDATION SCHEMAS
-// ========================================
 
 export const userFormSchema = z.object({
   first_name: z.string({
@@ -192,10 +176,6 @@ export const userFormSchema = z.object({
 
 export type UserFormData = z.infer<typeof userFormSchema>;
 
-// ========================================
-// PAYMENT VALIDATION SCHEMAS
-// ========================================
-
 export const paymentFormSchema = z.object({
   amount: z.number({
     required_error: 'Kwota jest wymagana',
@@ -217,20 +197,10 @@ export const paymentFormSchema = z.object({
 
 export type PaymentFormData = z.infer<typeof paymentFormSchema>;
 
-// ========================================
-// HELPER FUNCTIONS
-// ========================================
-
-/**
- * Sanitize string input by trimming and removing excessive whitespace
- */
 export const sanitizeString = (str: string): string => {
   return str.trim().replace(/\s+/g, ' ');
 };
 
-/**
- * Sanitize object by trimming all string values
- */
 export const sanitizeFormData = <T extends Record<string, any>>(data: T): T => {
   const sanitized = { ...data };
 
@@ -243,9 +213,6 @@ export const sanitizeFormData = <T extends Record<string, any>>(data: T): T => {
   return sanitized;
 };
 
-/**
- * Validate and sanitize form data
- */
 export const validateAndSanitize = <T>(
   schema: z.ZodSchema<T>,
   data: unknown

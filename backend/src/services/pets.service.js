@@ -1,5 +1,5 @@
 const { pool } = require('../config/database');
-const { NotFoundError, ConflictError } = require('../utils/errors');
+const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 class PetsService {
@@ -11,7 +11,6 @@ class PetsService {
     const { limit, offset, page } = parsePagination(query);
     const { ownerId, species, search } = query;
 
-    // Build WHERE clause
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -36,14 +35,12 @@ class PetsService {
       params.push(searchTerm, searchTerm);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM pets p ${whereClause}`,
       params
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated pets with owner info
     const [pets] = await pool.query(
       `SELECT p.*,
               CONCAT(u.first_name, ' ', u.last_name) as owner_name,
@@ -83,10 +80,9 @@ class PetsService {
 
     const pet = pets[0];
 
-    // Get medical history (recent appointments with medical records)
     const [medicalHistory] = await pool.query(
       `SELECT a.id as appointment_id, a.scheduled_at, a.status,
-              mr.diagnosis, mr.treatment, mr.notes,
+              mr.id as medical_record_id, mr.diagnosis, mr.treatment, mr.prescription, mr.notes,
               CONCAT(doc.first_name, ' ', doc.last_name) as doctor_name
        FROM appointments a
        JOIN users doc ON a.doctor_user_id = doc.id
@@ -96,6 +92,18 @@ class PetsService {
        LIMIT 10`,
       [petId]
     );
+
+    for (const record of medicalHistory) {
+      if (record.medical_record_id) {
+        const [files] = await pool.query(
+          'SELECT * FROM medical_files WHERE medical_record_id = ? ORDER BY uploaded_at',
+          [record.medical_record_id]
+        );
+        record.files = files;
+      } else {
+        record.files = [];
+      }
+    }
 
     pet.medical_history = medicalHistory;
 
@@ -134,7 +142,6 @@ class PetsService {
   async update(petId, data) {
     const { name, species, breed, sex, dateOfBirth, notes, weight, microchipNumber } = data;
 
-    // Check if pet exists
     await this.getById(petId);
 
     const updates = [];
@@ -188,7 +195,6 @@ class PetsService {
    * Delete pet
    */
   async delete(petId) {
-    // Check if pet exists
     await this.getById(petId);
 
     // Note: FK constraints will prevent deletion if appointments exist
@@ -198,19 +204,56 @@ class PetsService {
   }
 
   /**
-   * Get available species (for dropdowns)
+   * Verify pet ownership by client
+   * @param {number} petId - Pet ID
+   * @param {number} clientId - Client user ID
+   * @returns {object} Pet data if owned by client
+   * @throws {ForbiddenError} If pet is not owned by client
    */
-  async getSpecies() {
-    // This could come from database enum or a separate table
-    // For now, return common species
-    return [
-      { value: 'dog', label: 'Pies' },
-      { value: 'cat', label: 'Kot' },
-      { value: 'bird', label: 'Ptak' },
-      { value: 'rabbit', label: 'Królik' },
-      { value: 'hamster', label: 'Chomik' },
-      { value: 'other', label: 'Inne' }
-    ];
+  async verifyOwnership(petId, clientId) {
+    const [pets] = await pool.query(
+      'SELECT id, owner_user_id FROM pets WHERE id = ?',
+      [petId]
+    );
+
+    if (pets.length === 0) {
+      throw new NotFoundError('Pet');
+    }
+
+    if (pets[0].owner_user_id !== clientId) {
+      throw new ForbiddenError('You can only manage your own pets');
+    }
+
+    return pets[0];
+  }
+
+  /**
+   * Create pet by client (self-service)
+   * The client automatically becomes the owner
+   */
+  async createByClient(data, clientId) {
+    const { name, species, breed, sex, dateOfBirth, notes, weight, microchipNumber } = data;
+
+    const [result] = await pool.query(
+      `INSERT INTO pets (owner_user_id, name, species, breed, sex, date_of_birth, notes, weight, microchip_number)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [clientId, name, species, breed, sex || 'unknown', dateOfBirth || null, notes || null, weight || null, microchipNumber || null]
+    );
+
+    const petId = result.insertId;
+    return this.getById(petId);
+  }
+
+  /**
+   * Update pet by client (self-service)
+   * Client can only update their own pets
+   */
+  async updateByClient(petId, data, clientId) {
+    // Verify ownership
+    await this.verifyOwnership(petId, clientId);
+
+    // Use existing update method
+    return this.update(petId, data);
   }
 }
 

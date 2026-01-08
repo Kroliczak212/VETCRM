@@ -13,29 +13,26 @@ class UsersService {
     const { limit, offset, page } = parsePagination(query);
     const { roleId, role, isActive } = query;
 
-    // Build WHERE clause
-    let whereClause = 'WHERE 1=1';
+    let whereClause = 'WHERE u.deleted_at IS NULL'; // Exclude soft-deleted users
     const params = [];
 
     if (roleId) {
       whereClause += ' AND u.role_id = ?';
       params.push(roleId);
     } else if (role) {
-      // Map role name to role_id
+      // Support filtering by role name (e.g., 'doctor', 'receptionist')
       whereClause += ' AND r.name = ?';
       params.push(role);
     }
 
-    // Filter by is_active (default: only active users)
+    // Filter by active status (defaults to active users only)
     if (isActive !== undefined) {
       whereClause += ' AND u.is_active = ?';
       params.push(isActive === 'true' || isActive === true ? 1 : 0);
     } else {
-      // Default: show only active users
       whereClause += ' AND u.is_active = TRUE';
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total
        FROM users u
@@ -45,7 +42,6 @@ class UsersService {
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated users
     const [users] = await pool.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.phone,
               u.role_id, r.name as role_name, u.is_active, u.created_at, u.updated_at
@@ -72,7 +68,7 @@ class UsersService {
               u.role_id, r.name as role_name, u.is_active, u.created_at, u.updated_at
        FROM users u
        JOIN roles r ON u.role_id = r.id
-       WHERE u.id = ?`,
+       WHERE u.id = ? AND u.deleted_at IS NULL`,
       [userId]
     );
 
@@ -110,7 +106,7 @@ class UsersService {
    * Create new user (staff only: admin, receptionist, doctor)
    * Clients are created via /api/clients endpoint
    */
-  async create(data) {
+  async create(data, actorUserId = null, req = null) {
     const { email, password, firstName, lastName, phone, roleId, details } = data;
 
     // Check if email already exists
@@ -191,11 +187,11 @@ class UsersService {
   /**
    * Update user
    */
-  async update(userId, data) {
+  async update(userId, data, actorUserId = null, req = null) {
     const { firstName, lastName, phone, password, details } = data;
 
     // Check if user exists
-    const user = await this.getById(userId);
+    const oldUser = await this.getById(userId);
 
     const connection = await pool.getConnection();
     try {
@@ -258,7 +254,10 @@ class UsersService {
       }
 
       await connection.commit();
-      return this.getById(userId);
+
+      const updatedUser = await this.getById(userId);
+
+      return updatedUser;
 
     } catch (err) {
       await connection.rollback();
@@ -274,7 +273,7 @@ class UsersService {
    * When doctor is deactivated, they won't appear in available doctors list
    * and getAvailableSlots will return empty array
    */
-  async updateIsActive(userId, isActive) {
+  async updateIsActive(userId, isActive, actorUserId = null, req = null) {
     // Check if user exists
     const user = await this.getById(userId);
 
@@ -305,39 +304,156 @@ class UsersService {
       );
     }
 
-    return this.getById(userId);
+    const updatedUser = await this.getById(userId);
+
+    return updatedUser;
   }
 
   /**
-   * Delete user (soft delete - can be implemented later)
+   * Delete user (soft delete with smart logic)
+   * - If user has appointment history: SOFT DELETE (preserve data)
+   * - If user has no history: HARD DELETE (clean removal)
    */
-  async delete(userId) {
+  async delete(userId, actorUserId = null, req = null) {
     // Check if user exists
-    await this.getById(userId);
+    const user = await this.getById(userId);
 
-    // Note: In production, check if user has related records (appointments, etc.)
-    // and either prevent deletion or cascade appropriately
+    // Check if user has future appointments
+    const [futureAppointments] = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM appointments
+       WHERE doctor_user_id = ?
+         AND scheduled_at > NOW()
+         AND status NOT IN ('cancelled', 'cancelled_late')`,
+      [userId]
+    );
 
-    const connection = await pool.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      // Delete role-specific details first (FK constraints)
-      await connection.query('DELETE FROM doctor_details WHERE user_id = ?', [userId]);
-      await connection.query('DELETE FROM receptionist_details WHERE user_id = ?', [userId]);
-
-      // Delete user
-      await connection.query('DELETE FROM users WHERE id = ?', [userId]);
-
-      await connection.commit();
-      return { message: 'User deleted successfully' };
-
-    } catch (err) {
-      await connection.rollback();
-      throw err;
-    } finally {
-      connection.release();
+    if (futureAppointments[0].count > 0) {
+      throw new ValidationError(
+        `Cannot delete user with ${futureAppointments[0].count} upcoming appointments. ` +
+        `Please reassign or cancel appointments first.`
+      );
     }
+
+    // Check if user has pending schedules
+    const [pendingSchedules] = await pool.query(
+      'SELECT COUNT(*) as count FROM schedules WHERE doctor_user_id = ? AND status = "pending"',
+      [userId]
+    );
+
+    if (pendingSchedules[0].count > 0) {
+      throw new ValidationError(
+        `Cannot delete user with ${pendingSchedules[0].count} pending schedule requests. ` +
+        `Please approve or reject them first.`
+      );
+    }
+
+    // Check if user has appointment history
+    const [appointmentHistory] = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM appointments
+       WHERE doctor_user_id = ? OR created_by_user_id = ?`,
+      [userId, userId]
+    );
+
+    const hasHistory = appointmentHistory[0].count > 0;
+
+    if (hasHistory) {
+      // SOFT DELETE - preserve data for historical records
+      const timestamp = Date.now();
+      await pool.query(
+        `UPDATE users
+         SET deleted_at = NOW(),
+             deleted_by_user_id = ?,
+             is_active = FALSE,
+             email = CONCAT(email, '_deleted_', ?)
+         WHERE id = ?`,
+        [actorUserId, timestamp, userId]
+      );
+
+      return {
+        message: 'User archived successfully (soft delete - has appointment history)',
+        soft_deleted: true,
+        appointment_count: appointmentHistory[0].count
+      };
+
+    } else {
+      // HARD DELETE - no history, safe to remove completely
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+
+        // Delete role-specific details first (FK constraints)
+        await connection.query('DELETE FROM doctor_details WHERE user_id = ?', [userId]);
+        await connection.query('DELETE FROM receptionist_details WHERE user_id = ?', [userId]);
+
+        // Delete user
+        await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+
+        await connection.commit();
+
+        return {
+          message: 'User permanently deleted (no appointment history)',
+          hard_deleted: true
+        };
+
+      } catch (err) {
+        await connection.rollback();
+        throw err;
+      } finally {
+        connection.release();
+      }
+    }
+  }
+
+  /**
+   * Restore a soft-deleted user
+   * ADMIN ONLY - restore user that was soft-deleted
+   */
+  async restore(userId, actorUserId = null, req = null) {
+    // Get soft-deleted user
+    const [users] = await pool.query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.phone,
+              u.role_id, r.name as role_name, u.is_active, u.deleted_at
+       FROM users u
+       JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ? AND u.deleted_at IS NOT NULL`,
+      [userId]
+    );
+
+    if (users.length === 0) {
+      throw new NotFoundError('Deleted user not found');
+    }
+
+    const user = users[0];
+
+    // Remove _deleted_timestamp suffix from email
+    const originalEmail = user.email.replace(/_deleted_\d+$/, '');
+
+    // Check if original email is now taken
+    const [emailCheck] = await pool.query(
+      'SELECT id FROM users WHERE email = ? AND deleted_at IS NULL',
+      [originalEmail]
+    );
+
+    if (emailCheck.length > 0) {
+      throw new ConflictError(
+        `Cannot restore user: email ${originalEmail} is already in use by another active user`
+      );
+    }
+
+    // Restore user
+    await pool.query(
+      `UPDATE users
+       SET deleted_at = NULL,
+           deleted_by_user_id = NULL,
+           email = ?,
+           is_active = TRUE
+       WHERE id = ?`,
+      [originalEmail, userId]
+    );
+
+    return this.getById(userId);
   }
 
   /**
@@ -349,7 +465,7 @@ class UsersService {
               u.role_id, r.name as role_name, u.created_at
        FROM users u
        JOIN roles r ON u.role_id = r.id
-       WHERE r.name = 'doctor' AND u.is_active = TRUE
+       WHERE r.name = 'doctor' AND u.is_active = TRUE AND u.deleted_at IS NULL
        ORDER BY u.last_name, u.first_name`
     );
 

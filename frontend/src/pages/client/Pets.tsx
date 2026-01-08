@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dog, Cat, Calendar, FileText, Syringe, Heart, Loader2, Eye, X, CalendarClock } from "lucide-react";
+import { Dog, Cat, Calendar, FileText, Syringe, Heart, Loader2, Eye, X, CalendarClock, FileDown, Plus, Pencil } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { petsService, type Pet } from "@/services/pets.service";
@@ -15,6 +15,8 @@ import { vaccinationsService, type Vaccination } from "@/services/vaccinations.s
 import { AppointmentDetailsDialog } from "@/components/AppointmentDetailsDialog";
 import { CancelAppointmentDialog } from "@/components/CancelAppointmentDialog";
 import { RescheduleAppointmentDialog } from "@/components/RescheduleAppointmentDialog";
+import { GenerateDocumentationDialog } from "@/components/GenerateDocumentationDialog";
+import { PetFormDialog } from "@/components/PetFormDialog";
 
 const Pets = () => {
   const navigate = useNavigate();
@@ -25,26 +27,28 @@ const Pets = () => {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [vaccinationHistoryDialogOpen, setVaccinationHistoryDialogOpen] = useState(false);
   const [selectedPetForVaccinations, setSelectedPetForVaccinations] = useState<Pet | null>(null);
+  const [documentationDialogOpen, setDocumentationDialogOpen] = useState(false);
+  const [selectedPetForDocumentation, setSelectedPetForDocumentation] = useState<Pet | null>(null);
 
-  // Cancel and reschedule dialog state
+  // Pet form dialog (add/edit)
+  const [isPetFormOpen, setIsPetFormOpen] = useState(false);
+  const [petToEdit, setPetToEdit] = useState<Pet | null>(null);
+
   const [appointmentToCancel, setAppointmentToCancel] = useState<Appointment | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
 
-  // Fetch pets
   const { data: petsData, isLoading: petsLoading } = useQuery({
     queryKey: ['pets', 'my'],
     queryFn: () => petsService.getAll({ limit: 100 }),
   });
 
-  // Fetch appointments
   const { data: appointmentsData, isLoading: appointmentsLoading } = useQuery({
     queryKey: ['appointments', 'my'],
     queryFn: () => appointmentsService.getAll({ limit: 100 }),
   });
 
-  // Fetch vaccinations
   const { data: vaccinationsData, isLoading: vaccinationsLoading } = useQuery({
     queryKey: ['vaccinations', 'my'],
     queryFn: () => vaccinationsService.getAll({ limit: 100 }),
@@ -54,7 +58,6 @@ const Pets = () => {
   const allAppointments = appointmentsData?.data || [];
   const allVaccinations = vaccinationsData?.data || [];
 
-  // Helper: Calculate age from birth date
   const calculateAge = (birthDate?: string): string => {
     if (!birthDate) return "Nieznany wiek";
     const birth = new Date(birthDate);
@@ -73,14 +76,12 @@ const Pets = () => {
     }
   };
 
-  // Helper: Get vaccinations for a specific pet
   const getPetVaccinations = (petId: number): Vaccination[] => {
     return allVaccinations
       .filter((vac: Vaccination) => vac.pet_id === petId)
       .sort((a: Vaccination, b: Vaccination) => new Date(b.vaccination_date).getTime() - new Date(a.vaccination_date).getTime());
   };
 
-  // Helper: Get upcoming visits for a specific pet
   const getUpcomingVisits = (petId: number): Appointment[] => {
     return allAppointments
       .filter((apt: Appointment) =>
@@ -90,7 +91,6 @@ const Pets = () => {
       .sort((a: Appointment, b: Appointment) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
   };
 
-  // Helper: Get last visit date for a pet
   const getLastVisit = (petId: number): string => {
     const petAppointments = allAppointments
       .filter((apt: Appointment) => apt.pet_id === petId && apt.status === 'completed')
@@ -99,12 +99,10 @@ const Pets = () => {
     return petAppointments.length > 0 ? formatDate(petAppointments[0].scheduled_at) : 'Brak wizyt';
   };
 
-  // Helper: Format date to Polish locale
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("pl-PL");
   };
 
-  // Helper: Format time to Polish locale
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString("pl-PL", { hour: '2-digit', minute: '2-digit' });
   };
@@ -192,6 +190,17 @@ const Pets = () => {
     setSelectedPetForVaccinations(null);
   };
 
+  // Handle documentation dialog
+  const handleOpenDocumentationDialog = (pet: Pet) => {
+    setSelectedPetForDocumentation(pet);
+    setDocumentationDialogOpen(true);
+  };
+
+  const handleCloseDocumentationDialog = () => {
+    setDocumentationDialogOpen(false);
+    setSelectedPetForDocumentation(null);
+  };
+
   if (petsLoading || appointmentsLoading || vaccinationsLoading) {
     return (
       <AppLayout role="client">
@@ -205,9 +214,20 @@ const Pets = () => {
   return (
     <AppLayout role="client">
       <header className="bg-card border-b border-border p-6 sticky top-0 z-10 backdrop-blur-sm bg-card/80">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Moje Zwierzęta</h1>
-          <p className="text-muted-foreground">Pełna dokumentacja zdrowia Twoich pupili</p>
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Moje Zwierzęta</h1>
+            <p className="text-muted-foreground">Pełna dokumentacja zdrowia Twoich pupili</p>
+          </div>
+          <Button
+            onClick={() => {
+              setPetToEdit(null);
+              setIsPetFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Dodaj zwierzę
+          </Button>
         </div>
       </header>
 
@@ -243,11 +263,21 @@ const Pets = () => {
                           </p>
                         </div>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setPetToEdit(pet);
+                          setIsPetFormOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edytuj
+                      </Button>
                     </div>
                   </CardHeader>
 
                 <CardContent className="space-y-6">
-                  {/* Basic Info */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-muted/50 rounded-lg p-3 border border-border">
                       <p className="text-xs text-muted-foreground mb-1">Waga</p>
@@ -267,7 +297,6 @@ const Pets = () => {
                     </div>
                   </div>
 
-                  {/* Vaccinations */}
                   {petVaccinations.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
@@ -302,7 +331,6 @@ const Pets = () => {
                     </div>
                   )}
 
-                  {/* Upcoming Visits */}
                   {upcomingVisits.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
@@ -334,7 +362,6 @@ const Pets = () => {
                                 Zobacz
                               </Button>
                             </div>
-                            {/* Action buttons */}
                             <div className="flex gap-2 pt-2 border-t border-primary/20">
                               <Button
                                 variant="outline"
@@ -367,7 +394,6 @@ const Pets = () => {
                     </div>
                   )}
 
-                  {/* Actions */}
                   <div className="grid grid-cols-2 gap-2 pt-4 border-t border-border">
                     <Button
                       variant="outline"
@@ -384,6 +410,14 @@ const Pets = () => {
                     >
                       <Syringe className="mr-2 h-4 w-4" />
                       Historia szczepień
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => handleOpenDocumentationDialog(pet)}
+                    >
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Wygeneruj dokumentację
                     </Button>
                     <Button
                       variant="outline"
@@ -408,7 +442,6 @@ const Pets = () => {
           )}
         </div>
 
-        {/* Health Status Dialog */}
         <Dialog open={healthDialogOpen} onOpenChange={setHealthDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
@@ -457,28 +490,24 @@ const Pets = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Appointment Details Dialog */}
         <AppointmentDetailsDialog
           appointmentId={selectedAppointmentId}
           isOpen={isDetailsDialogOpen}
           onClose={handleCloseDetailsDialog}
         />
 
-        {/* Cancel Appointment Dialog */}
         <CancelAppointmentDialog
           appointment={appointmentToCancel}
           isOpen={isCancelDialogOpen}
           onClose={handleCloseCancelDialog}
         />
 
-        {/* Reschedule Appointment Dialog */}
         <RescheduleAppointmentDialog
           appointment={appointmentToReschedule}
           isOpen={isRescheduleDialogOpen}
           onClose={handleCloseRescheduleDialog}
         />
 
-        {/* Vaccination History Dialog */}
         <Dialog open={vaccinationHistoryDialogOpen} onOpenChange={setVaccinationHistoryDialogOpen}>
           <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
             <DialogHeader>
@@ -583,6 +612,21 @@ const Pets = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <GenerateDocumentationDialog
+          pet={selectedPetForDocumentation}
+          isOpen={documentationDialogOpen}
+          onClose={handleCloseDocumentationDialog}
+        />
+
+        <PetFormDialog
+          isOpen={isPetFormOpen}
+          onClose={() => {
+            setIsPetFormOpen(false);
+            setPetToEdit(null);
+          }}
+          pet={petToEdit}
+        />
     </AppLayout>
   );
 };

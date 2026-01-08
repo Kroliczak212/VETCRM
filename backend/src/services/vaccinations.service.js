@@ -32,7 +32,6 @@ class VaccinationsService {
     const { limit, offset, page } = parsePagination(query);
     const { petId, status, source } = query;
 
-    // Build WHERE clause
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -52,7 +51,6 @@ class VaccinationsService {
       params.push(source);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total
        FROM vaccinations v
@@ -62,7 +60,6 @@ class VaccinationsService {
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated vaccinations with related data
     const [vaccinations] = await pool.query(
       `SELECT v.*,
               p.name as pet_name,
@@ -86,7 +83,6 @@ class VaccinationsService {
       [...params, limit, offset]
     );
 
-    // Add computed status field
     const vaccinationsWithStatus = vaccinations.map(vac => ({
       ...vac,
       status: this._calculateStatus(vac.next_due_date)
@@ -136,7 +132,6 @@ class VaccinationsService {
 
     const vaccination = vaccinations[0];
 
-    // Check access rights
     if (user && user.role === 'client' && vaccination.owner_user_id !== user.id) {
       throw new ForbiddenError('You can only view vaccinations for your own pets');
     }
@@ -166,7 +161,6 @@ class VaccinationsService {
       addedByUserId
     } = data;
 
-    // Verify pet exists
     const [pets] = await pool.query('SELECT id, owner_user_id, species FROM pets WHERE id = ?', [petId]);
     if (pets.length === 0) {
       throw new NotFoundError('Pet not found');
@@ -183,13 +177,14 @@ class VaccinationsService {
       }
 
       const type = types[0];
-      // Check species match (or type is for 'wszystkie')
-      if (type.species !== 'wszystkie' && type.species !== pets[0].species) {
+      // Check species match (or type is for 'wszystkie' or 'inne') - case insensitive
+      const typeSpecies = type.species.toLowerCase();
+      const petSpecies = pets[0].species.toLowerCase();
+      if (typeSpecies !== 'wszystkie' && typeSpecies !== 'inne' && typeSpecies !== petSpecies) {
         throw new BadRequestError(`Vaccination type ${type.name} is not for ${pets[0].species}`);
       }
     }
 
-    // Calculate next_due_date if not provided
     let calculatedNextDue = nextDueDate;
     if (!calculatedNextDue && vaccinationTypeId) {
       // Use recommended interval from vaccination type
@@ -198,17 +193,22 @@ class VaccinationsService {
         [vaccinationTypeId]
       );
       if (types[0]?.recommended_interval_months) {
-        const vaccDate = new Date(vaccinationDate);
-        vaccDate.setMonth(vaccDate.getMonth() + types[0].recommended_interval_months);
-        calculatedNextDue = vaccDate.toISOString().split('T')[0];
+        // Use MySQL DATE_ADD to avoid timezone issues
+        const [result] = await pool.query(
+          'SELECT DATE_ADD(?, INTERVAL ? MONTH) as next_due',
+          [vaccinationDate, types[0].recommended_interval_months]
+        );
+        calculatedNextDue = result[0].next_due;
       }
     }
 
-    // Default to +1 year if still no next_due_date
     if (!calculatedNextDue) {
-      const vaccDate = new Date(vaccinationDate);
-      vaccDate.setFullYear(vaccDate.getFullYear() + 1);
-      calculatedNextDue = vaccDate.toISOString().split('T')[0];
+      // Use MySQL DATE_ADD for consistency
+      const [result] = await pool.query(
+        'SELECT DATE_ADD(?, INTERVAL 1 YEAR) as next_due',
+        [vaccinationDate]
+      );
+      calculatedNextDue = result[0].next_due;
     }
 
     const [result] = await pool.query(
@@ -250,7 +250,6 @@ class VaccinationsService {
       notes
     } = data;
 
-    // Verify pet access
     const [pets] = await pool.query(
       'SELECT id, owner_user_id FROM pets WHERE id = ?',
       [petId]
@@ -260,12 +259,10 @@ class VaccinationsService {
       throw new NotFoundError('Pet not found');
     }
 
-    // Only allow owner or staff to manually add vaccinations
     if (user.role === 'client' && pets[0].owner_user_id !== user.id) {
       throw new ForbiddenError('You can only add vaccinations for your own pets');
     }
 
-    // Get vaccine name from type if not provided
     let finalVaccineName = vaccineName;
     if (!finalVaccineName && vaccinationTypeId) {
       const [types] = await pool.query(
@@ -296,6 +293,14 @@ class VaccinationsService {
   }
 
   /**
+   * Create vaccination record (public API)
+   * Wrapper for createManual() - used by the controller
+   */
+  async create(data, user) {
+    return this.createManual(data, user);
+  }
+
+  /**
    * Create vaccination record from completed appointment
    * Called automatically when appointment with vaccination is completed
    * @param {Object} appointmentData - appointment details
@@ -314,7 +319,6 @@ class VaccinationsService {
       throw new BadRequestError('Vaccination type is required for appointment-based vaccination');
     }
 
-    // Get vaccination type details
     const [types] = await pool.query(
       'SELECT name FROM vaccination_types WHERE id = ?',
       [vaccinationTypeId]
@@ -347,7 +351,6 @@ class VaccinationsService {
   async update(vaccinationId, data, user) {
     const vaccination = await this.getById(vaccinationId, user);
 
-    // Only staff and doctors can update
     if (!['admin', 'doctor', 'receptionist'].includes(user.role)) {
       throw new ForbiddenError('Only staff can update vaccination records');
     }
@@ -408,7 +411,6 @@ class VaccinationsService {
   async delete(vaccinationId, user) {
     const vaccination = await this.getById(vaccinationId, user);
 
-    // Only staff can delete
     if (!['admin', 'doctor', 'receptionist'].includes(user.role)) {
       throw new ForbiddenError('Only staff can delete vaccination records');
     }

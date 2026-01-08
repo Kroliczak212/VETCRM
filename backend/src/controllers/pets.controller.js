@@ -1,5 +1,7 @@
 const petsService = require('../services/pets.service');
+const petDocumentationService = require('../services/pet-documentation.service');
 const asyncHandler = require('../utils/async-handler');
+const { format } = require('date-fns');
 
 class PetsController {
   getAll = asyncHandler(async (req, res) => {
@@ -33,9 +35,51 @@ class PetsController {
     res.json(result);
   });
 
-  getSpecies = asyncHandler(async (req, res) => {
-    const species = await petsService.getSpecies();
-    res.json({ species });
+  generateDocumentationPDF = asyncHandler(async (req, res) => {
+    const petId = req.params.id;
+    const { startDate, endDate } = req.query;
+
+    const pdfStream = await petDocumentationService.generatePetDocumentation(
+      petId,
+      startDate || null,
+      endDate || null,
+      req.user
+    );
+
+    // Construct filename using pet name and current date
+    const pet = await petsService.getById(petId);
+    const petName = pet.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+    const filename = `dokumentacja_${petName}_${dateStr}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    pdfStream.pipe(res);
+  });
+
+  /**
+   * Create pet by client (self-service)
+   * Client automatically becomes the owner
+   */
+  createByClient = asyncHandler(async (req, res) => {
+    const pet = await petsService.createByClient(req.body, req.user.id);
+    res.status(201).json({
+      message: 'Pet created successfully',
+      pet
+    });
+  });
+
+  /**
+   * Update pet by client (self-service)
+   * Client can only update their own pets
+   */
+  updateByClient = asyncHandler(async (req, res) => {
+    const pet = await petsService.updateByClient(req.params.id, req.body, req.user.id);
+    res.json({
+      message: 'Pet updated successfully',
+      pet
+    });
   });
 }
 

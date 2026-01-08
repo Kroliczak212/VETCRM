@@ -36,8 +36,34 @@ const getPetByIdSchema = z.object({
   })
 });
 
+const getDocumentationSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, 'ID must be a number').transform(Number)
+  }),
+  query: z.object({
+    startDate: z.string().datetime({ message: 'Start date must be a valid ISO 8601 datetime' }).optional(),
+    endDate: z.string().datetime({ message: 'End date must be a valid ISO 8601 datetime' }).optional()
+  })
+});
+
+// Schema for client self-service pet creation (no ownerId required)
+const createPetByClientSchema = z.object({
+  body: z.object({
+    name: z.string().min(2, 'Pet name must be at least 2 characters'),
+    species: z.string().min(2, 'Species is required'),
+    breed: z.string().optional(),
+    sex: z.enum(['male', 'female', 'unknown']).optional(),
+    dateOfBirth: z.string().optional(),
+    notes: z.string().optional(),
+    weight: z.number().positive().optional(),
+    microchipNumber: z.string().optional()
+  })
+});
+
 module.exports = {
   createPetSchema,
   updatePetSchema,
-  getPetByIdSchema
+  getPetByIdSchema,
+  getDocumentationSchema,
+  createPetByClientSchema
 };

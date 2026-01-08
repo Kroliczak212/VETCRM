@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
-import { appointmentsService, type Appointment } from "@/services/appointments.service";
+import { appointmentsService, type Appointment, type MedicalFile } from "@/services/appointments.service";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import {
@@ -10,7 +10,6 @@ import {
   Clock,
   User,
   Phone,
-  Mail,
   Stethoscope,
   MapPin,
   FileText,
@@ -19,8 +18,15 @@ import {
   DollarSign,
   AlertCircle,
   PawPrint,
-  Loader2
+  Loader2,
+  Download,
+  File,
+  FileImage
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { medicalRecordsService } from "@/services/medical-records.service";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface AppointmentDetailsDialogProps {
   appointmentId: number | null;
@@ -29,11 +35,48 @@ interface AppointmentDetailsDialogProps {
 }
 
 export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: AppointmentDetailsDialogProps) {
+  const { toast } = useToast();
+  const [downloadingFileId, setDownloadingFileId] = useState<number | null>(null);
+
   const { data: appointment, isLoading } = useQuery({
     queryKey: ['appointment', appointmentId],
     queryFn: () => appointmentsService.getById(appointmentId!),
     enabled: !!appointmentId && isOpen,
   });
+
+  const handleDownloadFile = async (fileId: number, fileName: string) => {
+    setDownloadingFileId(fileId);
+    try {
+      await medicalRecordsService.downloadFile(fileId);
+      toast({
+        title: "Pobieranie rozpoczęte",
+        description: `Plik "${fileName}" jest pobierany.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Błąd pobierania",
+        description: "Nie udało się pobrać pliku. Spróbuj ponownie.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingFileId(null);
+    }
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => fileType.includes(ext))) {
+      return <FileImage className="h-4 w-4" />;
+    }
+    return <File className="h-4 w-4" />;
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
 
   const getStatusColor = (status: Appointment['status']) => {
     const colors = {
@@ -79,7 +122,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
           </div>
         ) : appointment ? (
           <div className="space-y-6">
-            {/* Status Badge */}
             <div className="flex items-center justify-between">
               <Badge className={getStatusColor(appointment.status)}>
                 {getStatusLabel(appointment.status)}
@@ -89,7 +131,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
               </p>
             </div>
 
-            {/* Date and Time */}
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-start gap-3">
                 <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
@@ -113,7 +154,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
 
             <Separator />
 
-            {/* Client Information */}
             <div>
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <User className="h-4 w-4" />
@@ -135,7 +175,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
 
             <Separator />
 
-            {/* Pet Information */}
             <div>
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <PawPrint className="h-4 w-4" />
@@ -154,7 +193,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
 
             <Separator />
 
-            {/* Doctor Information */}
             <div>
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Stethoscope className="h-4 w-4" />
@@ -165,7 +203,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
               </div>
             </div>
 
-            {/* Location */}
             {appointment.location && (
               <>
                 <Separator />
@@ -183,22 +220,35 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
 
             <Separator />
 
-            {/* Reason for Visit */}
             <div>
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 Powód wizyty
               </h3>
-              <div className="pl-6">
-                {appointment.reason ? (
+              <div className="pl-6 space-y-2">
+                {appointment.reason_name ? (
+                  <div>
+                    <p className="text-sm font-medium">{appointment.reason_name}</p>
+                    {appointment.vaccination_type_name && (
+                      <p className="text-sm text-muted-foreground">
+                        Typ szczepienia: {appointment.vaccination_type_name}
+                      </p>
+                    )}
+                  </div>
+                ) : appointment.reason ? (
                   <p className="text-sm text-muted-foreground">{appointment.reason}</p>
                 ) : (
                   <p className="text-sm text-muted-foreground italic">Brak podanego powodu</p>
                 )}
+                {appointment.reason && appointment.reason_name && (
+                  <div>
+                    <p className="text-sm font-medium mt-2">Dodatkowy opis:</p>
+                    <p className="text-sm text-muted-foreground">{appointment.reason}</p>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Warning for upcoming appointments */}
             {isUpcoming && (
               <>
                 <Separator />
@@ -214,7 +264,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
               </>
             )}
 
-            {/* Services - Only for completed appointments */}
             {isCompleted && appointment.services && appointment.services.length > 0 && (
               <>
                 <Separator />
@@ -245,7 +294,6 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
               </>
             )}
 
-            {/* Medical Record - Only for completed appointments */}
             {isCompleted && appointment.medical_record && (
               <>
                 <Separator />
@@ -290,12 +338,54 @@ export function AppointmentDetailsDialog({ appointmentId, isOpen, onClose }: App
                         </p>
                       </div>
                     )}
+
+                    {appointment.medical_record.files && appointment.medical_record.files.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Załączone pliki ({appointment.medical_record.files.length})
+                        </p>
+                        <div className="space-y-2">
+                          {appointment.medical_record.files.map((file: MedicalFile) => (
+                            <div
+                              key={file.id}
+                              className="flex items-center justify-between bg-muted p-3 rounded-md"
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {getFileIcon(file.file_type)}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium truncate">{file.file_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatFileSize(file.file_size)}
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownloadFile(file.id, file.file_name)}
+                                disabled={downloadingFileId === file.id}
+                                className="ml-2 flex-shrink-0"
+                              >
+                                {downloadingFileId === file.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Pobierz
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
             )}
 
-            {/* Cancelled appointment notice */}
             {isCancelled && (
               <>
                 <Separator />

@@ -11,14 +11,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export default function DoctorCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // Calculate start and end of current month
   const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
   const startDate = startOfMonth.toISOString().split('T')[0];
   const endDate = endOfMonth.toISOString().split('T')[0];
 
-  // Fetch calendar data
   const { data: calendarData, isLoading } = useQuery({
     queryKey: ['calendar', startDate, endDate],
     queryFn: () => schedulesService.getCalendar({ startDate, endDate }),

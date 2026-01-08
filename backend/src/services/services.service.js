@@ -10,7 +10,6 @@ class ServicesService {
     const { limit, offset, page } = parsePagination(query);
     const { category, search } = query;
 
-    // Build WHERE clause
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -25,14 +24,12 @@ class ServicesService {
       params.push(searchTerm, searchTerm);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM services ${whereClause}`,
       params
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated services
     const [services] = await pool.query(
       `SELECT * FROM services
        ${whereClause}
@@ -69,7 +66,6 @@ class ServicesService {
   async create(data) {
     const { name, category, price, durationMinutes, description } = data;
 
-    // Check if service name already exists
     const [existing] = await pool.query(
       'SELECT id FROM services WHERE name = ?',
       [name]
@@ -94,14 +90,12 @@ class ServicesService {
   async update(serviceId, data) {
     const { name, category, price, durationMinutes, description } = data;
 
-    // Check if service exists
     await this.getById(serviceId);
 
     const updates = [];
     const params = [];
 
     if (name !== undefined) {
-      // Check if new name conflicts with existing
       const [existing] = await pool.query(
         'SELECT id FROM services WHERE name = ? AND id != ?',
         [name, serviceId]
@@ -144,7 +138,6 @@ class ServicesService {
    * Delete service
    */
   async delete(serviceId) {
-    // Check if service exists
     await this.getById(serviceId);
 
     // Note: FK constraints will prevent deletion if service is used in appointments

@@ -3,7 +3,7 @@ const router = express.Router();
 const petsController = require('../controllers/pets.controller');
 const { authenticate } = require('../middleware/auth');
 const validate = require('../middleware/validate');
-const { createPetSchema, updatePetSchema, getPetByIdSchema } = require('../validators/pets.validator');
+const { createPetSchema, updatePetSchema, getPetByIdSchema, getDocumentationSchema, createPetByClientSchema } = require('../validators/pets.validator');
 
 /**
  * @swagger
@@ -47,20 +47,6 @@ const { createPetSchema, updatePetSchema, getPetByIdSchema } = require('../valid
  *         description: List of pets
  */
 router.get('/', authenticate(), petsController.getAll);
-
-/**
- * @swagger
- * /api/pets/species:
- *   get:
- *     summary: Get available species
- *     tags: [Pets]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of available species
- */
-router.get('/species', authenticate(), petsController.getSpecies);
 
 /**
  * @swagger
@@ -162,5 +148,137 @@ router.put('/:id', authenticate(['admin', 'receptionist']), validate(updatePetSc
  *         description: Pet deleted successfully
  */
 router.delete('/:id', authenticate(['admin', 'receptionist']), validate(getPetByIdSchema), petsController.delete);
+
+// =====================================================
+// CLIENT SELF-SERVICE ROUTES
+// =====================================================
+
+/**
+ * @swagger
+ * /api/pets/my:
+ *   post:
+ *     summary: Create new pet (client self-service)
+ *     description: Allows clients to add a new pet. The pet is automatically assigned to the authenticated client.
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - species
+ *             properties:
+ *               name:
+ *                 type: string
+ *               species:
+ *                 type: string
+ *               breed:
+ *                 type: string
+ *               sex:
+ *                 type: string
+ *                 enum: [male, female, unknown]
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *               notes:
+ *                 type: string
+ *               weight:
+ *                 type: number
+ *               microchipNumber:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Pet created successfully
+ */
+router.post('/my', authenticate(['client']), validate(createPetByClientSchema), petsController.createByClient);
+
+/**
+ * @swagger
+ * /api/pets/my/{id}:
+ *   put:
+ *     summary: Update pet (client self-service)
+ *     description: Allows clients to update their own pet. Client can only update pets they own.
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               species:
+ *                 type: string
+ *               breed:
+ *                 type: string
+ *               sex:
+ *                 type: string
+ *                 enum: [male, female, unknown]
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *               notes:
+ *                 type: string
+ *               weight:
+ *                 type: number
+ *               microchipNumber:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Pet updated successfully
+ *       403:
+ *         description: Forbidden - pet does not belong to client
+ */
+router.put('/my/:id', authenticate(['client']), validate(updatePetSchema), petsController.updateByClient);
+
+/**
+ * @swagger
+ * /api/pets/{id}/documentation/pdf:
+ *   get:
+ *     summary: Generate PDF documentation for a pet
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Start date for filtering (ISO 8601)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: End date for filtering (ISO 8601)
+ *     responses:
+ *       200:
+ *         description: PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/:id/documentation/pdf', authenticate(['client']), validate(getDocumentationSchema), petsController.generateDocumentationPDF);
 
 module.exports = router;

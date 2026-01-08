@@ -11,10 +11,7 @@
  * - Output: jan.kowalski@example.com123456789
  */
 function generateTemporaryPassword(email, phone) {
-  // Remove +48 prefix from phone if present
   const cleanPhone = phone.replace(/^\+48/, '').replace(/\s/g, '');
-
-  // Combine email and phone
   return email + cleanPhone;
 }
 
@@ -54,7 +51,6 @@ function validatePasswordStrength(password) {
     errors.push('Password must contain at least one special character');
   }
 
-  // Check for common weak passwords
   const weakPasswords = ['password', 'password123', '12345678', 'qwerty123'];
   if (weakPasswords.some(weak => password.toLowerCase().includes(weak))) {
     errors.push('Password is too common and easily guessable');

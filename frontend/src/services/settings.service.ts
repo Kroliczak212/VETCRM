@@ -1,6 +1,5 @@
 import { apiClient } from '@/lib/api-client';
 
-// Setting Types
 export interface Setting {
   key: string;
   value: any;
@@ -39,33 +38,21 @@ export interface WorkingHours {
   sunday: { open: string | null; close: string | null };
 }
 
-/**
- * Get all settings
- */
 export const getSettings = async (): Promise<SettingsObject> => {
   const response = await apiClient.get<SettingsObject>('/settings');
   return response.data;
 };
 
-/**
- * Get setting by key
- */
 export const getSettingByKey = async (key: string): Promise<Setting> => {
   const response = await apiClient.get<Setting>(`/settings/${key}`);
   return response.data;
 };
 
-/**
- * Update setting by key
- */
 export const updateSetting = async (key: string, value: any): Promise<Setting> => {
   const response = await apiClient.patch<Setting>(`/settings/${key}`, { value });
   return response.data;
 };
 
-/**
- * Update multiple settings at once
- */
 export const updateSettings = async (
   settings: Record<string, any>
 ): Promise<{ message: string; updatedKeys: string[] }> => {
@@ -73,33 +60,21 @@ export const updateSettings = async (
   return response.data;
 };
 
-/**
- * Create new setting (admin only)
- */
 export const createSetting = async (data: SettingCreate): Promise<Setting> => {
   const response = await apiClient.post<Setting>('/settings', data);
   return response.data;
 };
 
-/**
- * Delete setting (admin only)
- */
 export const deleteSetting = async (key: string): Promise<{ message: string }> => {
   const response = await apiClient.delete<{ message: string }>(`/settings/${key}`);
   return response.data;
 };
 
-/**
- * Initialize default settings
- */
 export const initializeDefaultSettings = async (): Promise<{ message: string }> => {
   const response = await apiClient.post<{ message: string }>('/settings/initialize-defaults');
   return response.data;
 };
 
-/**
- * Helper: Get working hours for specific day
- */
 export const getWorkingHoursForDay = (
   workingHours: WorkingHours,
   day: keyof WorkingHours
@@ -107,17 +82,11 @@ export const getWorkingHoursForDay = (
   return workingHours[day];
 };
 
-/**
- * Helper: Check if clinic is open on specific day
- */
 export const isClinicOpenOnDay = (workingHours: WorkingHours, day: keyof WorkingHours): boolean => {
   const hours = workingHours[day];
   return hours.open !== null && hours.close !== null;
 };
 
-/**
- * Helper: Format working hours for display
- */
 export const formatWorkingHours = (workingHours: WorkingHours): string => {
   const dayNames: Record<keyof WorkingHours, string> = {
     monday: 'Poniedziałek',
@@ -140,18 +109,12 @@ export const formatWorkingHours = (workingHours: WorkingHours): string => {
     .join('\n');
 };
 
-/**
- * Helper: Get typed setting value
- */
 export const getTypedSettingValue = <T = any>(settings: SettingsObject, key: string): T | null => {
   const setting = settings[key];
   if (!setting) return null;
   return setting.value as T;
 };
 
-/**
- * Predefined setting keys for type safety
- */
 export const SETTING_KEYS = {
   CLINIC_NAME: 'clinic_name',
   CLINIC_ADDRESS: 'clinic_address',

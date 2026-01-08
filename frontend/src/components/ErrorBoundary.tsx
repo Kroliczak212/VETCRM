@@ -23,7 +23,6 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
     return {
       hasError: true,
       error,
@@ -32,7 +31,6 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error to console in development
     if (import.meta.env.DEV) {
       console.error('Error caught by ErrorBoundary:', error, errorInfo);
     }
@@ -41,9 +39,6 @@ class ErrorBoundary extends Component<Props, State> {
       error,
       errorInfo,
     });
-
-    // TODO: Log error to external service (e.g., Sentry, LogRocket)
-    // logErrorToService(error, errorInfo);
   }
 
   handleReset = () => {

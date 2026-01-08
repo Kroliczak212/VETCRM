@@ -6,7 +6,6 @@ const config = require('../config');
  * Catches all errors and returns consistent JSON responses
  */
 const errorHandler = (err, req, res, next) => {
-  // Log error details only in development (in production, use proper logging service like Winston)
   if (config.env === 'development') {
     console.error({
       timestamp: new Date().toISOString(),
@@ -19,14 +18,12 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Default to 500 internal server error
   let statusCode = 500;
   let response = {
     error: 'Internal server error',
     code: 'INTERNAL_ERROR'
   };
 
-  // Handle operational errors (AppError and subclasses)
   if (err.isOperational) {
     statusCode = err.statusCode;
     response = {
@@ -34,19 +31,16 @@ const errorHandler = (err, req, res, next) => {
       code: err.code
     };
 
-    // Include validation errors if present
     if (err.errors) {
       response.errors = err.errors;
     }
   }
 
-  // Handle MySQL errors
   else if (err.code && err.code.startsWith('ER_')) {
     statusCode = 400;
     response = handleMySQLError(err);
   }
 
-  // Handle JWT errors
   else if (err.name === 'JsonWebTokenError') {
     statusCode = 401;
     response = { error: 'Invalid token', code: 'INVALID_TOKEN' };
@@ -55,7 +49,6 @@ const errorHandler = (err, req, res, next) => {
     response = { error: 'Token expired', code: 'TOKEN_EXPIRED' };
   }
 
-  // Handle Multer errors (file upload)
   else if (err.name === 'MulterError') {
     statusCode = 400;
     response = handleMulterError(err);

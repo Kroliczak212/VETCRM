@@ -100,7 +100,6 @@ export function CancelAppointmentDialog({ appointment, isOpen, onClose }: Cancel
   const hasWarning = hoursUntil >= CANCEL_WARNING_HOURS && hoursUntil < CANCEL_NO_PENALTY_HOURS;
   const timeRemaining = formatTimeRemaining(hoursUntil);
 
-  // Cannot cancel (< 24h)
   if (!canCancel) {
     return (
       <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -164,7 +163,6 @@ export function CancelAppointmentDialog({ appointment, isOpen, onClose }: Cancel
     );
   }
 
-  // Can cancel - show confirmation with appropriate warning
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
@@ -204,7 +202,6 @@ export function CancelAppointmentDialog({ appointment, isOpen, onClose }: Cancel
                 </div>
               </div>
 
-              {/* Late cancellation warning with fee */}
               {hasLateFee && (
                 <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg space-y-2">
                   <p className="font-semibold text-destructive">
@@ -224,7 +221,6 @@ export function CancelAppointmentDialog({ appointment, isOpen, onClose }: Cancel
                 </div>
               )}
 
-              {/* Warning (48-72h) */}
               {hasWarning && !hasLateFee && (
                 <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg dark:bg-yellow-950/20 dark:border-yellow-800/30">
                   <p className="font-semibold text-yellow-800 dark:text-yellow-600 mb-1">
@@ -239,7 +235,6 @@ export function CancelAppointmentDialog({ appointment, isOpen, onClose }: Cancel
                 </div>
               )}
 
-              {/* No penalty (>72h) */}
               {!hasWarning && !hasLateFee && (
                 <div className="bg-green-50 border border-green-200 p-3 rounded-lg dark:bg-green-950/20 dark:border-green-800/30">
                   <p className="text-sm text-green-700 dark:text-green-500">

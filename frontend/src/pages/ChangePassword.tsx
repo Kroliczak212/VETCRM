@@ -29,7 +29,6 @@ const ChangePassword = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Real-time password validation
   const validation: PasswordValidation = {
     minLength: newPassword.length >= 8,
     hasUppercase: /[A-Z]/.test(newPassword),
@@ -52,7 +51,6 @@ const ChangePassword = () => {
         description: 'Your password has been changed successfully.',
       });
 
-      // Get user role and redirect to appropriate dashboard
       const user = authService.getCurrentUser();
       if (user?.role_name === 'admin') {
         navigate('/admin');
@@ -125,7 +123,6 @@ const ChangePassword = () => {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Current Password */}
             <div className="space-y-2">
               <Label htmlFor="oldPassword">Current Password</Label>
               <div className="relative">
@@ -147,7 +144,6 @@ const ChangePassword = () => {
               </div>
             </div>
 
-            {/* New Password */}
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
               <div className="relative">
@@ -169,7 +165,6 @@ const ChangePassword = () => {
               </div>
             </div>
 
-            {/* Password Requirements */}
             {newPassword.length > 0 && (
               <div className="bg-muted/50 p-4 rounded-lg space-y-2">
                 <p className="text-sm font-medium mb-2">Password Requirements:</p>
@@ -181,7 +176,6 @@ const ChangePassword = () => {
               </div>
             )}
 
-            {/* Confirm Password */}
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
               <div className="relative">
@@ -211,7 +205,6 @@ const ChangePassword = () => {
               )}
             </div>
 
-            {/* Submit Button */}
             <Button
               type="submit"
               className="w-full"

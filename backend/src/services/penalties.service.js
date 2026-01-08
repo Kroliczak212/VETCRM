@@ -11,7 +11,6 @@ class PenaltiesService {
     const { limit, offset, page } = parsePagination(query);
     const { clientUserId } = query;
 
-    // Build WHERE clause
     let whereClause = '';
     const params = [];
 
@@ -20,14 +19,12 @@ class PenaltiesService {
       params.push(clientUserId);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM penalties p ${whereClause}`,
       params
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated penalties with client details
     const [penalties] = await pool.query(
       `SELECT p.*,
               u.first_name as client_first_name, u.last_name as client_last_name,
@@ -105,7 +102,6 @@ class PenaltiesService {
    * Delete penalty
    */
   async delete(penaltyId) {
-    // Verify penalty exists
     await this.getById(penaltyId);
 
     await pool.query('DELETE FROM penalties WHERE id = ?', [penaltyId]);

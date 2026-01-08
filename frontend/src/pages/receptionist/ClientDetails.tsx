@@ -21,8 +21,8 @@ import { vaccinationsService, type CreateVaccinationData, type Vaccination } fro
 import { AppointmentDetailsDialog } from "@/components/AppointmentDetailsDialog";
 import { z } from "zod";
 import { validateAndSanitize } from "@/lib/validation";
+import { PET_SPECIES, isPredefinedSpecies } from "@/constants/pet-species";
 
-// Pet form validation schema (camelCase for CreatePetData)
 const createPetSchema = z.object({
   ownerId: z.number().positive('ID właściciela jest wymagane'),
 
@@ -96,37 +96,35 @@ export default function ClientDetails() {
     notes: "",
   });
   const [editingPet, setEditingPet] = useState<UpdatePetData & { id: number } | null>(null);
+  const [showCustomSpeciesAdd, setShowCustomSpeciesAdd] = useState(false);
+  const [customSpeciesAdd, setCustomSpeciesAdd] = useState("");
+  const [showCustomSpeciesEdit, setShowCustomSpeciesEdit] = useState(false);
+  const [customSpeciesEdit, setCustomSpeciesEdit] = useState("");
 
-  // Fetch client data
   const { data: client, isLoading: clientLoading, error: clientError } = useQuery({
     queryKey: ['client', id],
     queryFn: () => clientsService.getById(Number(id)),
     enabled: !!id,
   });
 
-  // Fetch client's pets
   const { data: petsData, isLoading: petsLoading } = useQuery({
     queryKey: ['pets', 'client', id],
     queryFn: () => petsService.getAll({ ownerId: Number(id) }),
     enabled: !!id,
   });
 
-  // Fetch appointments for this client's pets
   const { data: appointmentsData } = useQuery({
     queryKey: ['appointments', 'client', id],
     queryFn: async () => {
       const pets = petsData?.data || [];
       if (pets.length === 0) return { data: [] };
 
-      // Fetch appointments for each pet and combine results
       const allAppointments = await Promise.all(
         pets.map(pet => appointmentsService.getAll({ petId: pet.id, limit: 100 }))
       );
 
-      // Flatten and combine all appointments
       const combinedAppointments = allAppointments.flatMap(result => result.data);
 
-      // Sort by date (newest first)
       combinedAppointments.sort((a, b) =>
         new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
       );
@@ -136,7 +134,6 @@ export default function ClientDetails() {
     enabled: !!petsData,
   });
 
-  // Update client mutation
   const updateClientMutation = useMutation({
     mutationFn: (data: UpdateClientData) => clientsService.update(Number(id), data),
     onSuccess: () => {
@@ -153,7 +150,6 @@ export default function ClientDetails() {
     },
   });
 
-  // Create pet mutation
   const createPetMutation = useMutation({
     mutationFn: (data: CreatePetData) => petsService.create(data),
     onSuccess: () => {
@@ -172,6 +168,8 @@ export default function ClientDetails() {
         microchipNumber: "",
         notes: "",
       });
+      setShowCustomSpeciesAdd(false);
+      setCustomSpeciesAdd("");
     },
     onError: (error: any) => {
       toast({
@@ -182,7 +180,6 @@ export default function ClientDetails() {
     },
   });
 
-  // Update pet mutation
   const updatePetMutation = useMutation({
     mutationFn: ({ id: petId, data }: { id: number; data: UpdatePetData }) =>
       petsService.update(petId, data),
@@ -192,6 +189,8 @@ export default function ClientDetails() {
       toast({ title: "Sukces", description: "Dane pupila zostały zaktualizowane" });
       setIsEditPetDialogOpen(false);
       setEditingPet(null);
+      setShowCustomSpeciesEdit(false);
+      setCustomSpeciesEdit("");
     },
     onError: (error: any) => {
       toast({
@@ -202,7 +201,6 @@ export default function ClientDetails() {
     },
   });
 
-  // Delete pet mutation
   const deletePetMutation = useMutation({
     mutationFn: (petId: number) => petsService.delete(petId),
     onSuccess: () => {
@@ -221,11 +219,17 @@ export default function ClientDetails() {
   });
 
   const handleUpdateClient = () => {
-    if (!editData.firstName && !editData.lastName && !editData.phone) {
+    const hasChanges =
+      editData.firstName !== undefined ||
+      editData.lastName !== undefined ||
+      editData.phone !== undefined ||
+      editData.address !== undefined ||
+      editData.notes !== undefined;
+
+    if (!hasChanges) {
       toast({
-        title: "Błąd",
+        title: "Brak zmian",
         description: "Wprowadź przynajmniej jedną zmianę",
-        variant: "destructive",
       });
       return;
     }
@@ -233,8 +237,12 @@ export default function ClientDetails() {
   };
 
   const handleAddPet = () => {
-    // Validate and sanitize form data
-    const validationResult = validateAndSanitize(createPetSchema, newPet);
+    const petData = {
+      ...newPet,
+      species: newPet.species === 'other' ? customSpeciesAdd : newPet.species
+    };
+
+    const validationResult = validateAndSanitize(createPetSchema, petData);
 
     if (!validationResult.success) {
       const firstError = validationResult.errors.errors[0];
@@ -244,27 +252,22 @@ export default function ClientDetails() {
         variant: "destructive",
       });
 
-      // Log all validation errors in development
       if (import.meta.env.DEV) {
         console.error('Validation errors:', validationResult.errors.errors);
       }
       return;
     }
 
-    // Submit validated and sanitized data
     createPetMutation.mutate(validationResult.data);
   };
 
   const handleEditPet = (pet: any) => {
-    // Convert date to YYYY-MM-DD format for date input
     let formattedDate = "";
     if (pet.date_of_birth) {
-      // Debug: log what we receive from backend
       if (import.meta.env.DEV) {
         console.log('Original date from backend:', pet.date_of_birth);
       }
 
-      // Simply extract YYYY-MM-DD from ISO string (backend stores in UTC)
       formattedDate = pet.date_of_birth.substring(0, 10);
 
       if (import.meta.env.DEV) {
@@ -272,10 +275,12 @@ export default function ClientDetails() {
       }
     }
 
+    const isCustomSpecies = !isPredefinedSpecies(pet.species);
+
     setEditingPet({
       id: pet.id,
       name: pet.name,
-      species: pet.species,
+      species: isCustomSpecies ? 'other' : pet.species,
       breed: pet.breed || "",
       sex: pet.sex,
       dateOfBirth: formattedDate,
@@ -283,18 +288,30 @@ export default function ClientDetails() {
       microchipNumber: pet.microchip_number || "",
       notes: pet.notes || "",
     });
+
+    if (isCustomSpecies) {
+      setCustomSpeciesEdit(pet.species);
+      setShowCustomSpeciesEdit(true);
+    } else {
+      setCustomSpeciesEdit("");
+      setShowCustomSpeciesEdit(false);
+    }
+
     setIsEditPetDialogOpen(true);
   };
 
   const handleUpdatePet = () => {
     if (!editingPet) return;
 
-    // Prepare data for validation (without id)
     const { id: petId, ...petData } = editingPet;
 
-    // Validate and sanitize form data
-    const validationResult = validateAndSanitize(createPetSchema, {
+    const finalPetData = {
       ...petData,
+      species: petData.species === 'other' ? customSpeciesEdit : petData.species
+    };
+
+    const validationResult = validateAndSanitize(createPetSchema, {
+      ...finalPetData,
       ownerId: Number(id), // Add ownerId for validation
     });
 
@@ -312,7 +329,6 @@ export default function ClientDetails() {
       return;
     }
 
-    // Remove ownerId before sending to update endpoint
     const { ownerId, ...updateData } = validationResult.data;
     updatePetMutation.mutate({ id: petId, data: updateData });
   };
@@ -334,7 +350,6 @@ export default function ClientDetails() {
   const pets = petsData?.data || [];
   const appointments = appointmentsData?.data || [];
 
-  // Filter only past appointments (completed or scheduled in the past)
   const now = new Date();
   const pastAppointments = appointments.filter(apt => {
     const aptDate = new Date(apt.scheduled_at);
@@ -446,7 +461,26 @@ export default function ClientDetails() {
                     <Label>Telefon</Label>
                     <Input
                       defaultValue={client.phone}
-                      onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                      onChange={(e) => {
+                        let rawValue = e.target.value.replace(/\D/g, '');
+
+                        if (rawValue.startsWith('48')) {
+                          rawValue = rawValue.substring(2);
+                        }
+
+                        rawValue = rawValue.substring(0, 9);
+
+                        let formattedValue = '';
+                        if (rawValue.length > 0) {
+                          formattedValue = '+48';
+                          if (rawValue.length > 0) formattedValue += ' ' + rawValue.substring(0, 3);
+                          if (rawValue.length > 3) formattedValue += ' ' + rawValue.substring(3, 6);
+                          if (rawValue.length > 6) formattedValue += ' ' + rawValue.substring(6, 9);
+                        }
+
+                        e.target.value = formattedValue;
+                        setEditData({ ...editData, phone: formattedValue });
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -532,11 +566,35 @@ export default function ClientDetails() {
                         </div>
                         <div className="space-y-2">
                           <Label>Gatunek *</Label>
-                          <Input
+                          <Select
                             value={newPet.species}
-                            onChange={(e) => setNewPet({ ...newPet, species: e.target.value })}
-                            placeholder="np. Pies"
-                          />
+                            onValueChange={(value) => {
+                              setNewPet({ ...newPet, species: value });
+                              setShowCustomSpeciesAdd(value === 'other');
+                              if (value !== 'other') {
+                                setCustomSpeciesAdd("");
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Wybierz gatunek" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PET_SPECIES.map((species) => (
+                                <SelectItem key={species.value} value={species.value}>
+                                  {species.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {showCustomSpeciesAdd && (
+                            <Input
+                              value={customSpeciesAdd}
+                              onChange={(e) => setCustomSpeciesAdd(e.target.value)}
+                              placeholder="Wpisz gatunek zwierzęcia"
+                              className="mt-2"
+                            />
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -768,7 +826,6 @@ export default function ClientDetails() {
         </div>
       </div>
 
-      {/* Edit Pet Dialog */}
       <Dialog open={isEditPetDialogOpen} onOpenChange={setIsEditPetDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -786,10 +843,35 @@ export default function ClientDetails() {
                 </div>
                 <div className="space-y-2">
                   <Label>Gatunek *</Label>
-                  <Input
+                  <Select
                     value={editingPet.species}
-                    onChange={(e) => setEditingPet({ ...editingPet, species: e.target.value })}
-                  />
+                    onValueChange={(value) => {
+                      setEditingPet({ ...editingPet, species: value });
+                      setShowCustomSpeciesEdit(value === 'other');
+                      if (value !== 'other') {
+                        setCustomSpeciesEdit("");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PET_SPECIES.map((species) => (
+                        <SelectItem key={species.value} value={species.value}>
+                          {species.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {showCustomSpeciesEdit && (
+                    <Input
+                      value={customSpeciesEdit}
+                      onChange={(e) => setCustomSpeciesEdit(e.target.value)}
+                      placeholder="Wpisz gatunek zwierzęcia"
+                      className="mt-2"
+                    />
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -860,6 +942,8 @@ export default function ClientDetails() {
                   onClick={() => {
                     setIsEditPetDialogOpen(false);
                     setEditingPet(null);
+                    setShowCustomSpeciesEdit(false);
+                    setCustomSpeciesEdit("");
                   }}
                 >
                   Anuluj
@@ -874,7 +958,6 @@ export default function ClientDetails() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Pet Confirmation */}
       <AlertDialog open={petToDelete !== null} onOpenChange={() => setPetToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -898,7 +981,6 @@ export default function ClientDetails() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Appointment Details Dialog */}
       <AppointmentDetailsDialog
         appointmentId={selectedAppointmentId}
         isOpen={isDetailsDialogOpen}

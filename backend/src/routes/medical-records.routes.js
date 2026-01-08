@@ -17,8 +17,9 @@ router.post('/', authenticate(['doctor']), medicalRecordsController.create);
 router.put('/:id', authenticate(['doctor']), medicalRecordsController.update);
 router.delete('/:id', authenticate(['admin', 'doctor']), medicalRecordsController.delete);
 
-// File upload
-router.post('/:id/files', authenticate(['doctor']), upload.single('file'), medicalRecordsController.addFile);
+// File upload - upload.single() returns array of middlewares [multer, validateAndSave]
+router.post('/:id/files', authenticate(['doctor']), ...upload.single('file'), medicalRecordsController.addFile);
 router.delete('/:id/files/:fileId', authenticate(['admin', 'doctor']), medicalRecordsController.deleteFile);
+router.get('/files/:fileId/download', authenticate(), medicalRecordsController.downloadFile);
 
 module.exports = router;

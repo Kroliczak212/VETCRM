@@ -108,6 +108,80 @@ router.get('/available-slots', authenticate(), appointmentsController.getAvailab
 
 /**
  * @swagger
+ * /api/appointments/time-range-all-doctors:
+ *   get:
+ *     summary: Get time range for all doctors on a specific date
+ *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Time range for all doctors
+ */
+router.get('/time-range-all-doctors', authenticate(['admin', 'receptionist', 'doctor']), appointmentsController.getTimeRangeForAllDoctors);
+
+/**
+ * @swagger
+ * /api/appointments/doctors-for-slot:
+ *   get:
+ *     summary: Get doctors working at a specific time slot
+ *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: time
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "09:00"
+ *     responses:
+ *       200:
+ *         description: List of doctors with availability
+ */
+router.get('/doctors-for-slot', authenticate(['admin', 'receptionist', 'doctor']), appointmentsController.getDoctorsForSlot);
+
+/**
+ * @swagger
+ * /api/appointments/doctor-time-range:
+ *   get:
+ *     summary: Get time range for a specific doctor on a specific date
+ *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: doctorId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Time range for the doctor
+ */
+router.get('/doctor-time-range', authenticate(['admin', 'receptionist', 'doctor']), appointmentsController.getDoctorTimeRange);
+
+/**
+ * @swagger
  * /api/appointments/reschedule-requests:
  *   get:
  *     summary: Get all reschedule requests (for receptionist)
@@ -372,6 +446,41 @@ router.post('/:id/cancel', authenticate(['client', 'admin', 'receptionist']), ap
  */
 router.post('/:id/reschedule-request', authenticate(['client', 'admin', 'receptionist']), appointmentsController.requestReschedule);
 
-
+/**
+ * @swagger
+ * /api/appointments/{id}/force-reschedule:
+ *   post:
+ *     summary: Force reschedule appointment by staff (receptionist/admin)
+ *     description: Directly changes the appointment time and sends email notification to the client
+ *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newScheduledAt
+ *             properties:
+ *               newScheduledAt:
+ *                 type: string
+ *                 format: date-time
+ *                 description: New appointment date and time
+ *               reason:
+ *                 type: string
+ *                 description: Reason for rescheduling (included in client email)
+ *     responses:
+ *       200:
+ *         description: Appointment rescheduled successfully
+ */
+router.post('/:id/force-reschedule', authenticate(['admin', 'receptionist']), appointmentsController.forceReschedule);
 
 module.exports = router;

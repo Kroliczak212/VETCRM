@@ -53,7 +53,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [clientNote, setClientNote] = useState<string>('');
 
-  // Reset form when dialog opens/closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedDate('');
@@ -66,7 +65,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
     }
   }, [isOpen, appointment]);
 
-  // Fetch available slots when date is selected
   const { data: availableSlots, isLoading: slotsLoading } = useQuery({
     queryKey: ['available-slots', appointment?.doctor_user_id, selectedDate],
     queryFn: () =>
@@ -115,7 +113,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
   const canReschedule = hoursUntil >= RESCHEDULE_MIN_HOURS_BEFORE;
   const timeRemaining = formatTimeRemaining(hoursUntil);
 
-  // Get next 7 days for date picker
   const getNextDays = (count: number) => {
     const days = [];
     const today = new Date();
@@ -127,9 +124,8 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
     return days;
   };
 
-  const availableDates = getNextDays(14); // Next 2 weeks
+  const availableDates = getNextDays(14);
 
-  // Cannot reschedule (< 48h)
   if (!canReschedule) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -193,7 +189,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
     );
   }
 
-  // Can reschedule - show form
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -208,7 +203,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Current appointment info */}
           <div>
             <Label className="text-sm text-muted-foreground">Obecny termin:</Label>
             <div className="bg-muted p-4 rounded-lg mt-2">
@@ -232,7 +226,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
             </div>
           </div>
 
-          {/* Date selection */}
           <div>
             <Label htmlFor="date">Wybierz nową datę *</Label>
             <select
@@ -258,7 +251,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
             </select>
           </div>
 
-          {/* Time selection */}
           {selectedDate && (
             <div>
               <Label htmlFor="time">Wybierz godzinę *</Label>
@@ -297,7 +289,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
             </div>
           )}
 
-          {/* Optional note */}
           <div>
             <Label htmlFor="note">Notatka (opcjonalna)</Label>
             <Textarea
@@ -310,7 +301,6 @@ export function RescheduleAppointmentDialog({ appointment, isOpen, onClose }: Re
             />
           </div>
 
-          {/* Info about approval */}
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg dark:bg-blue-950/20 dark:border-blue-800/30">
             <div className="flex items-start gap-2">
               <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />

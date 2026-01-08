@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Clock, DollarSign, Plus, Phone, Loader2, Eye } from "lucide-react";
+import { Calendar, Users, Clock, Plus, Phone, Loader2, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,7 +42,6 @@ const ReceptionistDashboard = () => {
     fetchStatistics();
   }, [toast]);
 
-  // Helper: Format time from ISO string
   const formatTime = (isoString: string): string => {
     return new Date(isoString).toLocaleTimeString("pl-PL", {
       hour: "2-digit",
@@ -50,7 +49,6 @@ const ReceptionistDashboard = () => {
     });
   };
 
-  // Handle opening appointment details
   const handleViewAppointmentDetails = (appointmentId: number) => {
     setSelectedAppointmentId(appointmentId);
     setIsDetailsDialogOpen(true);
@@ -106,14 +104,6 @@ const ReceptionistDashboard = () => {
       color: "text-secondary",
       bgColor: "bg-secondary/10",
     },
-    {
-      title: "Nieopłacone",
-      value: statistics.unpaidPayments.toString(),
-      change: "Płatności do rozliczenia",
-      icon: DollarSign,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-    },
   ];
 
   return (
@@ -142,8 +132,7 @@ const ReceptionistDashboard = () => {
         </header>
 
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {stats.map((stat, index) => (
               <Card
                 key={index}
@@ -166,7 +155,6 @@ const ReceptionistDashboard = () => {
             ))}
           </div>
 
-          {/* Quick Actions */}
           <Card className="animate-fade-in" style={{ animationDelay: "200ms" }}>
             <CardHeader>
               <CardTitle className="text-foreground">Szybkie Akcje</CardTitle>
@@ -202,7 +190,6 @@ const ReceptionistDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Today's Appointments */}
           <Card className="animate-fade-in" style={{ animationDelay: "300ms" }}>
             <CardHeader>
               <div className="flex items-center justify-between">

@@ -231,7 +231,6 @@ const Staff = () => {
         </header>
 
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-          {/* Search */}
           <Card>
             <CardContent className="pt-6">
               <div className="relative">
@@ -246,7 +245,6 @@ const Staff = () => {
             </CardContent>
           </Card>
 
-          {/* Staff List */}
           <div className="grid gap-4">
             {filteredStaff.map((member) => (
               <Card key={member.id} className="hover:shadow-lg transition-all">
@@ -301,7 +299,6 @@ const Staff = () => {
           </div>
         </div>
 
-        {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -366,7 +363,6 @@ const Staff = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation Dialog */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

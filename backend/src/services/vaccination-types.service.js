@@ -22,20 +22,17 @@ class VaccinationTypesService {
     let whereClauses = [];
     let params = [];
 
-    // Filter by active status - convert string to boolean
     if (isActive !== undefined) {
       whereClauses.push('is_active = ?');
       params.push(isActive === 'true' || isActive === true || isActive === 1 ? 1 : 0);
     }
 
-    // Filter by species
     if (species) {
       // If species is provided, show vaccines for that species OR 'wszystkie'
       whereClauses.push('(species = ? OR species = ?)');
       params.push(species, 'wszystkie');
     }
 
-    // Filter by required - convert string to boolean
     if (isRequired !== undefined) {
       whereClauses.push('is_required = ?');
       params.push(isRequired === 'true' || isRequired === true || isRequired === 1 ? 1 : 0);
@@ -43,13 +40,11 @@ class VaccinationTypesService {
 
     const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    // Get total count
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) as total FROM vaccination_types ${whereSQL}`,
       params
     );
 
-    // Get paginated data
     const [rows] = await pool.query(
       `SELECT * FROM vaccination_types
        ${whereSQL}
@@ -107,7 +102,7 @@ class VaccinationTypesService {
    * Update vaccination type (admin only)
    */
   async update(id, data) {
-    await this.getById(id); // Verify exists
+    await this.getById(id);
 
     const {
       name,
@@ -168,7 +163,7 @@ class VaccinationTypesService {
    * Soft delete - sets is_active = false
    */
   async delete(id) {
-    await this.getById(id); // Verify exists
+    await this.getById(id);
 
     await pool.query(
       'UPDATE vaccination_types SET is_active = FALSE WHERE id = ?',

@@ -41,7 +41,6 @@ const DoctorDashboard = () => {
     fetchStatistics();
   }, [toast]);
 
-  // Helper: Format time from ISO string
   const formatTime = (isoString: string): string => {
     return new Date(isoString).toLocaleTimeString("pl-PL", {
       hour: "2-digit",
@@ -49,7 +48,6 @@ const DoctorDashboard = () => {
     });
   };
 
-  // Helper: Get status badge
   const getStatusBadge = (status: string) => {
     const statusLabel = formatAppointmentStatus(status);
     const colorClass = getStatusColor(status);
@@ -60,7 +58,6 @@ const DoctorDashboard = () => {
     );
   };
 
-  // Handle opening appointment details
   const handleViewAppointmentDetails = (appointmentId: number) => {
     setSelectedAppointmentId(appointmentId);
     setIsDetailsDialogOpen(true);
@@ -130,7 +127,6 @@ const DoctorDashboard = () => {
         </header>
 
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
               <Card
@@ -151,7 +147,6 @@ const DoctorDashboard = () => {
             ))}
           </div>
 
-          {/* Week Statistics */}
           <Card>
             <CardHeader>
               <CardTitle>Statystyki Tygodnia</CardTitle>
@@ -174,7 +169,6 @@ const DoctorDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Today's Schedule */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -277,7 +271,6 @@ const DoctorDashboard = () => {
           </Card>
         </div>
 
-        {/* Appointment Details Dialog */}
         <AppointmentDetailsDialog
           appointmentId={selectedAppointmentId}
           isOpen={isDetailsDialogOpen}

@@ -232,9 +232,33 @@ router.patch('/:id/is-active', authenticate(['admin']), usersController.updateIs
 
 /**
  * @swagger
+ * /api/users/{id}/restore:
+ *   post:
+ *     summary: Restore a soft-deleted user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User restored successfully
+ *       404:
+ *         description: Deleted user not found
+ *       409:
+ *         description: Cannot restore - email already in use
+ */
+router.post('/:id/restore', authenticate(['admin']), usersController.restore);
+
+/**
+ * @swagger
  * /api/users/{id}:
  *   delete:
- *     summary: Delete user
+ *     summary: Delete user (soft delete if has history, hard delete otherwise)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -249,6 +273,8 @@ router.patch('/:id/is-active', authenticate(['admin']), usersController.updateIs
  *         description: User deleted successfully
  *       404:
  *         description: User not found
+ *       400:
+ *         description: Cannot delete user with future appointments or pending schedules
  */
 router.delete('/:id', authenticate(['admin']), validate(getUserByIdSchema), usersController.delete);
 

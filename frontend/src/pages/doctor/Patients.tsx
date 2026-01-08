@@ -17,7 +17,6 @@ const Patients = () => {
   const currentUser = authService.getCurrentUser();
   const doctorId = currentUser?.userId;
 
-  // Fetch all pets - backend will return pets this doctor has appointments with
   const { data: petsData, isLoading } = useQuery({
     queryKey: ['pets', 'all'],
     queryFn: () => petsService.getAll({ limit: 1000 }),
@@ -78,7 +77,6 @@ const Patients = () => {
         </header>
 
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-          {/* Search */}
           <Card>
             <CardContent className="pt-6">
               <div className="relative">
@@ -93,7 +91,6 @@ const Patients = () => {
             </CardContent>
           </Card>
 
-          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -132,7 +129,6 @@ const Patients = () => {
             </Card>
           </div>
 
-          {/* Patients Grid */}
           {filteredPatients.length === 0 ? (
             <Card>
               <CardContent className="pt-6">

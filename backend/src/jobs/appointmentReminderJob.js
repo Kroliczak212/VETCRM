@@ -14,7 +14,6 @@ const sendReminders = async () => {
   try {
     console.log('🔔 Running appointment reminder job...');
 
-    // Find appointments that need 24h reminders (not yet sent)
     const [reminders24h] = await pool.query(
       `SELECT
         a.id,
@@ -51,7 +50,6 @@ const sendReminders = async () => {
           hoursUntil: 24,
         });
 
-        // Mark as sent
         await pool.query('UPDATE appointments SET reminder_24h_sent = TRUE WHERE id = ?', [appointment.id]);
 
         console.log(`✅ 24h reminder sent for appointment ${appointment.id}`);
@@ -60,7 +58,6 @@ const sendReminders = async () => {
       }
     }
 
-    // Find appointments that need 2h reminders (not yet sent)
     const [reminders2h] = await pool.query(
       `SELECT
         a.id,
@@ -97,7 +94,6 @@ const sendReminders = async () => {
           hoursUntil: 2,
         });
 
-        // Mark as sent
         await pool.query('UPDATE appointments SET reminder_2h_sent = TRUE WHERE id = ?', [appointment.id]);
 
         console.log(`✅ 2h reminder sent for appointment ${appointment.id}`);
@@ -118,7 +114,6 @@ const sendReminders = async () => {
  * Example: 08:00, 09:00, 10:00, etc.
  */
 const startAppointmentReminderJob = () => {
-  // Schedule: every hour at minute 0
   cron.schedule('0 * * * *', sendReminders);
   console.log('✅ Appointment reminder cron job scheduled (every hour at :00)');
 };

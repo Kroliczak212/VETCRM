@@ -15,7 +15,6 @@ notificationEvents.on(EVENTS.RESCHEDULE_APPROVED, async (data) => {
   try {
     const { requestId, appointmentId } = data;
 
-    // Fetch reschedule request details with client and appointment info
     const [rows] = await pool.query(
       `SELECT
         rr.*,

@@ -33,9 +33,6 @@ export interface UpdateVaccinationTypeData {
 }
 
 export const vaccinationTypesService = {
-  /**
-   * Get all vaccination types with optional filters
-   */
   async getAll(params?: {
     species?: string;
     isRequired?: boolean;
@@ -47,33 +44,21 @@ export const vaccinationTypesService = {
     return response.data;
   },
 
-  /**
-   * Get vaccination type by ID
-   */
   async getById(id: number): Promise<VaccinationType> {
     const response = await apiClient.get(`/vaccination-types/${id}`);
     return response.data.type;
   },
 
-  /**
-   * Create new vaccination type (admin only)
-   */
   async create(data: CreateVaccinationTypeData): Promise<VaccinationType> {
     const response = await apiClient.post('/vaccination-types', data);
     return response.data.type;
   },
 
-  /**
-   * Update vaccination type (admin only)
-   */
   async update(id: number, data: UpdateVaccinationTypeData): Promise<VaccinationType> {
     const response = await apiClient.put(`/vaccination-types/${id}`, data);
     return response.data.type;
   },
 
-  /**
-   * Delete (deactivate) vaccination type (admin only)
-   */
   async delete(id: number): Promise<void> {
     await apiClient.delete(`/vaccination-types/${id}`);
   },

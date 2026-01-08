@@ -1,6 +1,5 @@
 import { apiClient } from '@/lib/api-client';
 
-// Notification Types
 export interface Notification {
   id: number;
   user_id: number;
@@ -32,9 +31,6 @@ export interface UnreadCountResponse {
   count: number;
 }
 
-/**
- * Get all notifications for current user
- */
 export const getNotifications = async (params?: {
   page?: number;
   limit?: number;
@@ -44,57 +40,36 @@ export const getNotifications = async (params?: {
   return response.data;
 };
 
-/**
- * Get notification by ID
- */
 export const getNotificationById = async (id: number): Promise<Notification> => {
   const response = await apiClient.get<Notification>(`/notifications/${id}`);
   return response.data;
 };
 
-/**
- * Create new notification (admin/system only)
- */
 export const createNotification = async (data: NotificationCreate): Promise<Notification> => {
   const response = await apiClient.post<Notification>('/notifications', data);
   return response.data;
 };
 
-/**
- * Mark notification as read
- */
 export const markNotificationAsRead = async (id: number): Promise<Notification> => {
   const response = await apiClient.patch<Notification>(`/notifications/${id}/read`);
   return response.data;
 };
 
-/**
- * Mark all notifications as read
- */
 export const markAllNotificationsAsRead = async (): Promise<{ message: string; updatedCount: number }> => {
   const response = await apiClient.patch<{ message: string; updatedCount: number }>('/notifications/read-all');
   return response.data;
 };
 
-/**
- * Delete notification
- */
 export const deleteNotification = async (id: number): Promise<{ message: string }> => {
   const response = await apiClient.delete<{ message: string }>(`/notifications/${id}`);
   return response.data;
 };
 
-/**
- * Get unread notification count
- */
 export const getUnreadCount = async (): Promise<number> => {
   const response = await apiClient.get<UnreadCountResponse>('/notifications/unread-count');
   return response.data.count;
 };
 
-/**
- * Helper: Format notification type label
- */
 export const formatNotificationType = (type: string): string => {
   const typeMap: Record<string, string> = {
     info: 'Informacja',
@@ -108,9 +83,6 @@ export const formatNotificationType = (type: string): string => {
   return typeMap[type] || type;
 };
 
-/**
- * Helper: Get notification type color
- */
 export const getNotificationTypeColor = (type: string): string => {
   const colorMap: Record<string, string> = {
     info: 'bg-blue-100 text-blue-800',
@@ -124,9 +96,6 @@ export const getNotificationTypeColor = (type: string): string => {
   return colorMap[type] || 'bg-gray-100 text-gray-800';
 };
 
-/**
- * Helper: Format relative time
- */
 export const formatNotificationTime = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();

@@ -80,6 +80,74 @@ class MedicalRecordsService {
     const { data } = await apiClient.delete<{ message: string }>(`/medical-records/${medicalRecordId}/files/${fileId}`);
     return data;
   }
+
+  async downloadFile(fileId: number): Promise<void> {
+    const response = await apiClient.get(`/medical-records/files/${fileId}/download`, {
+      responseType: 'blob'
+    });
+
+    const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition'];
+    let filename = `file-${fileId}`;
+
+    console.log('Content-Disposition header:', contentDisposition);
+
+    if (contentDisposition) {
+      const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (encodedMatch) {
+        filename = decodeURIComponent(encodedMatch[1].trim());
+        console.log('Using RFC 5987 filename:', filename);
+      } else {
+        const quotedMatch = contentDisposition.match(/filename="([^"]+)"/i);
+        const unquotedMatch = contentDisposition.match(/filename=([^;]+)/i);
+
+        if (quotedMatch) {
+          filename = quotedMatch[1].trim();
+          console.log('Using quoted filename:', filename);
+        } else if (unquotedMatch) {
+          filename = unquotedMatch[1].trim();
+          console.log('Using unquoted filename:', filename);
+        }
+      }
+    } else {
+      console.log('No Content-Disposition header found, using default:', filename);
+    }
+
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/octet-stream'
+    });
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
+  async previewFile(fileId: number): Promise<void> {
+    const response = await apiClient.get(`/medical-records/files/${fileId}/download`, {
+      responseType: 'blob'
+    });
+
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/octet-stream'
+    });
+    const url = window.URL.createObjectURL(blob);
+
+    window.open(url, '_blank');
+
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  getFilePreviewUrl(fileId: number): string {
+    const token = localStorage.getItem('auth_token');
+    return `${apiClient.defaults.baseURL}/medical-records/files/${fileId}/download?token=${token}`;
+  }
 }
 
 export const medicalRecordsService = new MedicalRecordsService();

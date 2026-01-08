@@ -138,7 +138,6 @@ class SchedulesService {
    * Shows what hours the doctor is working each day in a date range
    */
   async getCalendar(doctorId, startDate, endDate) {
-    // Get all approved schedules in the date range
     const [schedules] = await pool.query(
       `SELECT date, start_time, end_time, notes
        FROM schedules
@@ -147,7 +146,6 @@ class SchedulesService {
       [doctorId, startDate, endDate]
     );
 
-    // Get doctor's default working hours
     const [workingHours] = await pool.query(
       `SELECT day_of_week, start_time, end_time
        FROM working_hours
@@ -155,7 +153,6 @@ class SchedulesService {
       [doctorId]
     );
 
-    // Create a map of working hours by day
     const workingHoursMap = {};
     workingHours.forEach(wh => {
       workingHoursMap[wh.day_of_week] = {
@@ -164,7 +161,6 @@ class SchedulesService {
       };
     });
 
-    // Create a map of schedule overrides by date
     const schedulesMap = {};
     schedules.forEach(s => {
       // Normalize date format from MySQL to YYYY-MM-DD (using local timezone)
@@ -188,7 +184,6 @@ class SchedulesService {
       console.log('Schedule override:', dateStr, s.start_time, '-', s.end_time);
     });
 
-    // Generate calendar for date range
     const calendar = [];
     // Parse dates in local timezone to avoid UTC conversion issues
     const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
@@ -198,7 +193,6 @@ class SchedulesService {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
     while (current <= end) {
-      // Format date as YYYY-MM-DD in local timezone
       const year = current.getFullYear();
       const month = String(current.getMonth() + 1).padStart(2, '0');
       const day = String(current.getDate()).padStart(2, '0');
@@ -216,7 +210,6 @@ class SchedulesService {
         notes: null
       };
 
-      // Check if there's a schedule override for this date
       if (schedulesMap[dateStr]) {
         const override = schedulesMap[dateStr];
         dayInfo.is_working = override.start_time !== '00:00:00' || override.end_time !== '00:00:00';
@@ -225,9 +218,7 @@ class SchedulesService {
         dayInfo.source = 'schedule';
         dayInfo.notes = override.notes;
         console.log('Applied schedule override for', dateStr);
-      }
-      // Otherwise use default working hours
-      else if (workingHoursMap[dayName]) {
+      } else if (workingHoursMap[dayName]) {
         const wh = workingHoursMap[dayName];
         dayInfo.is_working = true;
         dayInfo.start_time = wh.start_time;

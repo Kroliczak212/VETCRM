@@ -1,10 +1,14 @@
 const { pool } = require('../config/database');
 const { NotFoundError, ConflictError, ValidationError, ForbiddenError } = require('../utils/errors');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
-const paymentsService = require('./payments.service');
 const penaltiesService = require('./penalties.service');
 const vaccinationsService = require('./vaccinations.service');
+const medicalRecordsService = require('./medical-records.service');
 const APPOINTMENT_RULES = require('../config/appointmentRules');
+
+const slotAvailabilityService = require('./slot-availability.service');
+const appointmentCancellationService = require('./appointment-cancellation.service');
+const appointmentRescheduleService = require('./appointment-reschedule.service');
 
 class AppointmentsService {
   /**
@@ -28,7 +32,6 @@ class AppointmentsService {
       params.push(user.id);
     }
 
-    // Additional filters
     if (doctorId) {
       whereClause += ' AND a.doctor_user_id = ?';
       params.push(doctorId);
@@ -46,7 +49,6 @@ class AppointmentsService {
       params.push(date);
     }
 
-    // Get total count
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total
        FROM appointments a
@@ -56,7 +58,6 @@ class AppointmentsService {
     );
     const totalCount = countResult[0].total;
 
-    // Get paginated appointments
     const [appointments] = await pool.query(
       `SELECT a.*,
               p.name as pet_name, p.species, p.breed,
@@ -70,6 +71,7 @@ class AppointmentsService {
               mr.id as medical_record_id,
               mr.diagnosis as medical_record_diagnosis,
               mr.treatment as medical_record_treatment,
+              mr.prescription as medical_record_prescription,
               mr.notes as medical_record_notes
        FROM appointments a
        JOIN pets p ON a.pet_id = p.id
@@ -85,7 +87,6 @@ class AppointmentsService {
       [...params, limit, offset]
     );
 
-    // Get services for each appointment and add time status
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Reset to start of day for comparison
 
@@ -106,19 +107,25 @@ class AppointmentsService {
           id: appointment.medical_record_id,
           diagnosis: appointment.medical_record_diagnosis,
           treatment: appointment.medical_record_treatment,
+          prescription: appointment.medical_record_prescription,
           notes: appointment.medical_record_notes
         };
+
+        const [files] = await pool.query(
+          'SELECT * FROM medical_files WHERE medical_record_id = ? ORDER BY uploaded_at',
+          [appointment.medical_record_id]
+        );
+        appointment.medical_record.files = files;
       } else {
         appointment.medical_record = null;
       }
 
-      // Remove flattened medical record fields
       delete appointment.medical_record_id;
       delete appointment.medical_record_diagnosis;
       delete appointment.medical_record_treatment;
+      delete appointment.medical_record_prescription;
       delete appointment.medical_record_notes;
 
-      // Add time_status field (past, today, future)
       const appointmentDate = new Date(appointment.scheduled_at);
       appointmentDate.setHours(0, 0, 0, 0);
 
@@ -171,7 +178,6 @@ class AppointmentsService {
 
     const appointment = appointments[0];
 
-    // Get services
     const [services] = await pool.query(
       `SELECT s.id, s.name, s.category, aps.quantity, aps.unit_price,
               (aps.quantity * aps.unit_price) as total
@@ -182,14 +188,22 @@ class AppointmentsService {
     );
     appointment.services = services;
 
-    // Get medical record if exists
     const [medicalRecords] = await pool.query(
       'SELECT * FROM medical_records WHERE appointment_id = ?',
       [appointmentId]
     );
-    appointment.medical_record = medicalRecords[0] || null;
 
-    // Add time_status field (past, today, future)
+    if (medicalRecords[0]) {
+      appointment.medical_record = medicalRecords[0];
+      const [files] = await pool.query(
+        'SELECT * FROM medical_files WHERE medical_record_id = ? ORDER BY uploaded_at',
+        [medicalRecords[0].id]
+      );
+      appointment.medical_record.files = files;
+    } else {
+      appointment.medical_record = null;
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const appointmentDate = new Date(appointment.scheduled_at);
@@ -224,7 +238,6 @@ class AppointmentsService {
     try {
       await connection.beginTransaction();
 
-      // Validate vaccination booking: if reason is vaccination, require vaccination type
       if (reasonId) {
         const [reasons] = await connection.query(
           'SELECT is_vaccination FROM appointment_reasons WHERE id = ? AND is_active = TRUE',
@@ -259,7 +272,8 @@ class AppointmentsService {
         const vaccineSpecies = types[0].species;
         const petSpecies = pets[0].species;
 
-        if (vaccineSpecies !== 'wszystkie' && vaccineSpecies !== petSpecies) {
+        // Allow vaccines that are: specific to species, for all species, or for "inne" (other) category
+        if (vaccineSpecies !== 'wszystkie' && vaccineSpecies !== 'inne' && vaccineSpecies !== petSpecies) {
           throw new ValidationError(`Selected vaccination type is not compatible with ${petSpecies}`);
         }
       }
@@ -309,7 +323,6 @@ class AppointmentsService {
 
       const appointmentId = result.insertId;
 
-      // Insert services if provided
       if (services && services.length > 0) {
         const serviceValues = services.map(s => [
           appointmentId,
@@ -322,16 +335,7 @@ class AppointmentsService {
           'INSERT INTO appointment_services (appointment_id, service_id, quantity, unit_price) VALUES ?',
           [serviceValues]
         );
-
-        // Auto-create payment record when services are added
-        const totalAmount = services.reduce((sum, s) =>
-          sum + (s.quantity || 1) * s.unitPrice, 0);
-
-        await connection.query(
-          `INSERT INTO payments (appointment_id, amount_due, amount_paid, status, payment_method)
-           VALUES (?, ?, 0, 'unpaid', 'cash')`,
-          [appointmentId, totalAmount]
-        );
+        // Note: Payment tracking removed - handled outside system
       }
 
       await connection.commit();
@@ -358,10 +362,8 @@ class AppointmentsService {
     try {
       await connection.beginTransaction();
 
-      // Check if appointment exists
       const appointment = await this.getById(appointmentId);
 
-      // Validate vaccination booking: if reason is vaccination, require vaccination type
       if (reasonId !== undefined) {
         if (reasonId !== null) {
           const [reasons] = await connection.query(
@@ -393,12 +395,12 @@ class AppointmentsService {
         const vaccineSpecies = types[0].species;
         const petSpecies = appointment.species;
 
-        if (vaccineSpecies !== 'wszystkie' && vaccineSpecies !== petSpecies) {
+        // Allow vaccines that are: specific to species, for all species, or for "inne" (other) category
+        if (vaccineSpecies !== 'wszystkie' && vaccineSpecies !== 'inne' && vaccineSpecies !== petSpecies) {
           throw new ValidationError(`Selected vaccination type is not compatible with ${petSpecies}`);
         }
       }
 
-      // Check if scheduled_at is changing and check for conflicts
       if (mysqlDatetime && mysqlDatetime !== appointment.scheduled_at) {
         const [conflicts] = await connection.query(
           `SELECT id FROM appointments
@@ -414,7 +416,6 @@ class AppointmentsService {
         }
       }
 
-      // Build update query
       const updates = [];
       const params = [];
 
@@ -451,12 +452,9 @@ class AppointmentsService {
         );
       }
 
-      // Update services if provided
       if (services !== undefined) {
-        // Delete existing services
         await connection.query('DELETE FROM appointment_services WHERE appointment_id = ?', [appointmentId]);
 
-        // Insert new services
         if (services.length > 0) {
           const serviceValues = services.map(s => [
             appointmentId,
@@ -485,35 +483,52 @@ class AppointmentsService {
 
   /**
    * Update appointment status
+   * @param {number} appointmentId
+   * @param {string} status
+   * @param {object} options - Optional parameters
+   * @param {boolean} options.vaccinationPerformed - If true, create vaccination record (for vaccination appointments)
    */
-  async updateStatus(appointmentId, status) {
+  async updateStatus(appointmentId, status, options = {}) {
     // Validate status
     const validStatuses = ['proposed', 'confirmed', 'in_progress', 'completed', 'cancelled', 'cancelled_late'];
     if (!validStatuses.includes(status)) {
       throw new ValidationError('Invalid status');
     }
 
-    // Check if appointment exists
     const appointment = await this.getById(appointmentId);
 
-    await pool.query(
-      'UPDATE appointments SET status = ?, updated_at = NOW() WHERE id = ?',
-      [status, appointmentId]
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    // Auto-create penalty for late cancellations
-    if (status === 'cancelled_late') {
-      await penaltiesService.createLateCancellationPenalty(
-        appointmentId,
-        appointment.client_id,
-        appointment.scheduled_at
+      await connection.query(
+        'UPDATE appointments SET status = ?, updated_at = NOW() WHERE id = ?',
+        [status, appointmentId]
       );
-    }
+
+      // Auto-create penalty for late cancellations
+      if (status === 'cancelled_late') {
+        await penaltiesService.createLateCancellationPenalty(
+          appointmentId,
+          appointment.client_id,
+          appointment.scheduled_at
+        );
+      }
+
+    let vaccinationCreated = false;
+    let vaccinationId = null;
+    let vaccinationError = null;
+    let medicalRecordCreated = false;
+    let medicalRecordId = null;
 
     // Auto-create vaccination record when vaccination appointment is completed
-    if (status === 'completed' && appointment.reason_is_vaccination && appointment.vaccination_type_id) {
+    // ONLY if doctor explicitly confirms vaccination was performed
+    if (status === 'completed' &&
+        appointment.reason_is_vaccination &&
+        appointment.vaccination_type_id &&
+        options.vaccinationPerformed === true) {
+
       try {
-        // Get doctor information for administering user
         const [doctors] = await pool.query(
           'SELECT id, first_name, last_name FROM users WHERE id = ?',
           [appointment.doctor_user_id]
@@ -529,44 +544,119 @@ class AppointmentsService {
 
           // Create vaccination record
           const vaccinationDate = new Date(appointment.scheduled_at).toISOString().split('T')[0];
-          await vaccinationsService.createFromAppointment(
+          const vaccination = await vaccinationsService.createFromAppointment(
             {
               appointmentId: appointmentId,
               petId: appointment.pet_id,
               vaccinationTypeId: appointment.vaccination_type_id,
               vaccinationDate: vaccinationDate,
-              batchNumber: null, // Can be added later via manual update
+              batchNumber: null,
               notes: appointment.reason || null
             },
             administeringDoctor
           );
 
-          console.log(`[Auto-Vaccination] Created vaccination record for appointment ${appointmentId}`);
+          vaccinationCreated = true;
+          vaccinationId = vaccination.id;
+          console.log(`[Auto-Vaccination] Created vaccination record ${vaccinationId} for appointment ${appointmentId}`);
+
+          try {
+            const [vaccinationTypes] = await pool.query(
+              'SELECT name FROM vaccination_types WHERE id = ?',
+              [appointment.vaccination_type_id]
+            );
+
+            const vaccinationTypeName = vaccinationTypes.length > 0 ? vaccinationTypes[0].name : 'szczepienie';
+
+            const medicalRecord = await medicalRecordsService.create(
+              {
+                appointmentId: appointmentId,
+                notes: `Wizyta szczepienia: ${vaccinationTypeName}\n\nSzczepienie zostało wykonane pomyślnie.`,
+                diagnosis: `Szczepienie: ${vaccinationTypeName}`,
+                treatment: `Podano szczepionkę: ${vaccinationTypeName}`,
+                prescription: null
+              },
+              appointment.doctor_user_id
+            );
+
+            medicalRecordCreated = true;
+            medicalRecordId = medicalRecord.id;
+            console.log(`[Auto-Medical-Record] Created medical record ${medicalRecordId} for performed vaccination in appointment ${appointmentId}`);
+          } catch (medRecordError) {
+            console.error(`[Auto-Medical-Record] Failed to create medical record for performed vaccination in appointment ${appointmentId}:`, medRecordError);
+          }
         }
       } catch (error) {
         // Log error but don't fail the status update
+        vaccinationError = error.message;
         console.error(`[Auto-Vaccination] Failed to create vaccination record for appointment ${appointmentId}:`, error);
+      }
+    } else if (status === 'completed' &&
+               appointment.reason_is_vaccination &&
+               appointment.vaccination_type_id &&
+               options.vaccinationPerformed === false) {
+      // Auto-create medical record documenting that vaccination was NOT performed
+      try {
+        const [vaccinationTypes] = await pool.query(
+          'SELECT name FROM vaccination_types WHERE id = ?',
+          [appointment.vaccination_type_id]
+        );
+
+        const vaccinationTypeName = vaccinationTypes.length > 0 ? vaccinationTypes[0].name : 'szczepienie';
+
+        const medicalRecord = await medicalRecordsService.create(
+          {
+            appointmentId: appointmentId,
+            notes: `Wizyta szczepienia: ${vaccinationTypeName}\n\nSzczepienie NIE zostało wykonane podczas tej wizyty.`,
+            diagnosis: null,
+            treatment: null,
+            prescription: null
+          },
+          appointment.doctor_user_id
+        );
+
+        medicalRecordCreated = true;
+        medicalRecordId = medicalRecord.id;
+        console.log(`[Auto-Medical-Record] Created medical record ${medicalRecordId} for non-performed vaccination in appointment ${appointmentId}`);
+      } catch (error) {
+        console.error(`[Auto-Medical-Record] Failed to create medical record for non-performed vaccination in appointment ${appointmentId}:`, error);
       }
     }
 
-    return this.getById(appointmentId);
+      await connection.commit();
+
+      const updatedAppointment = await this.getById(appointmentId);
+
+      // Add vaccination and medical record metadata to response
+      return {
+        ...updatedAppointment,
+        vaccinationCreated,
+        vaccinationId,
+        vaccinationError,
+        medicalRecordCreated,
+        medicalRecordId
+      };
+
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
   }
 
   /**
    * Delete appointment
    */
   async delete(appointmentId) {
-    // Check if appointment exists
     await this.getById(appointmentId);
 
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
 
-      // Delete services first
       await connection.query('DELETE FROM appointment_services WHERE appointment_id = ?', [appointmentId]);
 
-      // Delete appointment
       await connection.query('DELETE FROM appointments WHERE id = ?', [appointmentId]);
 
       await connection.commit();
@@ -584,166 +674,20 @@ class AppointmentsService {
    * Check doctor availability at specific time
    */
   async checkAvailability(doctorId, scheduledAt, durationMinutes, excludeAppointmentId = null) {
-    // Convert ISO 8601 datetime to MySQL DATETIME format
-    const mysqlDatetime = new Date(scheduledAt).toISOString().slice(0, 19).replace('T', ' ');
-
-    let query = `
-      SELECT id FROM appointments
-      WHERE doctor_user_id = ?
-      AND scheduled_at = ?
-      AND status NOT IN ('cancelled', 'cancelled_late')
-    `;
-    const params = [doctorId, mysqlDatetime];
-
-    if (excludeAppointmentId) {
-      query += ' AND id != ?';
-      params.push(excludeAppointmentId);
-    }
-
-    const [conflicts] = await pool.query(query, params);
-    return conflicts.length === 0;
+    return slotAvailabilityService.checkAvailability(doctorId, scheduledAt, durationMinutes, excludeAppointmentId);
   }
 
   /**
    * Get available time slots for a doctor on a specific date
-   * Priority: schedules (date-specific) > working_hours (default) > is_active check
-   * Each slot is 60 minutes (45 min appointment + 15 min break)
+   * Delegates to SlotAvailabilityService
    *
    * @param {number} doctorId - Doctor's user ID
    * @param {string} date - Date in YYYY-MM-DD format
-   * @returns {Array<{time: string, available: boolean}>} Array of time slots
+   * @param {object|null} user - User object for role-based time blocking
+   * @returns {Promise<Array<{time: string, available: boolean}>>} Array of time slots
    */
-  async getAvailableSlots(doctorId, date) {
-    console.log(`[getAvailableSlots] Called with doctorId=${doctorId}, date=${date}`);
-
-    // 1. Check if doctor is active
-    const [doctors] = await pool.query(
-      `SELECT u.id, u.is_active FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE u.id = ? AND r.name = ?`,
-      [doctorId, 'doctor']
-    );
-
-    if (doctors.length === 0) {
-      throw new NotFoundError('Doctor not found');
-    }
-
-    console.log(`[getAvailableSlots] Doctor found, is_active=${doctors[0].is_active}`);
-
-    if (!doctors[0].is_active) {
-      // Doctor is inactive - no slots available
-      return [];
-    }
-
-    // 2. Check for date-specific schedule override FIRST (schedules table)
-    const [scheduleOverride] = await pool.query(
-      `SELECT start_time, end_time, status
-       FROM schedules
-       WHERE doctor_user_id = ?
-       AND date = ?
-       AND status = 'approved'
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [doctorId, date]
-    );
-
-    console.log(`[getAvailableSlots] Schedule override query result:`, scheduleOverride);
-
-    let start_time, end_time;
-
-    if (scheduleOverride.length > 0) {
-      // Use schedule override
-      start_time = scheduleOverride[0].start_time;
-      end_time = scheduleOverride[0].end_time;
-
-      console.log(`[getAvailableSlots] Using schedule override: ${start_time} - ${end_time}`);
-
-      // Check if it's a day off (00:00:00 - 00:00:00)
-      if (start_time === '00:00:00' && end_time === '00:00:00') {
-        return []; // Doctor is off this day
-      }
-    } else {
-      // 3. Fallback to default working hours (working_hours table)
-      // Fix timezone issue: parse date parts to avoid UTC conversion
-      const [year, month, day] = date.split('-').map(Number);
-      const dateObj = new Date(year, month - 1, day); // month is 0-indexed
-      const dayOfWeek = dateObj.getDay();
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      const dayName = dayNames[dayOfWeek];
-
-      console.log(`[getAvailableSlots] Date: ${date}, Parsed day: ${dayName} (dayOfWeek=${dayOfWeek})`);
-
-      const [workingHours] = await pool.query(
-        `SELECT start_time, end_time FROM working_hours
-         WHERE doctor_user_id = ? AND day_of_week = ? AND is_active = TRUE`,
-        [doctorId, dayName]
-      );
-
-      console.log(`[getAvailableSlots] Working hours query result:`, workingHours);
-
-      if (workingHours.length === 0) {
-        // Doctor doesn't work on this day (no default hours set)
-        console.log(`[getAvailableSlots] No working hours found for ${dayName}`);
-        return [];
-      }
-
-      start_time = workingHours[0].start_time;
-      end_time = workingHours[0].end_time;
-
-      console.log(`[getAvailableSlots] Using working hours: ${start_time} - ${end_time}`);
-    }
-
-    // 4. Parse working hours
-    const [startHour, startMinute] = start_time.split(':').map(Number);
-    const [endHour, endMinute] = end_time.split(':').map(Number);
-
-    // Validate times
-    if (startHour === endHour && startMinute === endMinute) {
-      return []; // No working hours
-    }
-
-    // 5. Get existing appointments for this doctor on this date
-    const [existingAppointments] = await pool.query(
-      `SELECT scheduled_at FROM appointments
-       WHERE doctor_user_id = ?
-       AND DATE(scheduled_at) = ?
-       AND status NOT IN ('cancelled', 'cancelled_late')`,
-      [doctorId, date]
-    );
-
-    const bookedSlots = new Set(
-      existingAppointments.map(apt => {
-        const aptDate = new Date(apt.scheduled_at);
-        return `${aptDate.getHours().toString().padStart(2, '0')}:${aptDate.getMinutes().toString().padStart(2, '0')}`;
-      })
-    );
-
-    // 6. Generate available slots (60-minute intervals)
-    const slots = [];
-    let currentHour = startHour;
-    let currentMinute = startMinute;
-
-    while (
-      currentHour < endHour ||
-      (currentHour === endHour && currentMinute < endMinute)
-    ) {
-      const timeSlot = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
-      const isBooked = bookedSlots.has(timeSlot);
-
-      slots.push({
-        time: timeSlot,
-        available: !isBooked,
-      });
-
-      // Add 60 minutes (45 min appointment + 15 min break)
-      currentMinute += 60;
-      if (currentMinute >= 60) {
-        currentHour += Math.floor(currentMinute / 60);
-        currentMinute = currentMinute % 60;
-      }
-    }
-
-    return slots;
+  async getAvailableSlots(doctorId, date, user = null) {
+    return slotAvailabilityService.getAvailableSlots(doctorId, date, user);
   }
 
   /**
@@ -795,7 +739,6 @@ class AppointmentsService {
     try {
       await connection.beginTransaction();
 
-      // Update appointment
       const updateFields = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
       const updateValues = Object.values(updateData);
 
@@ -830,33 +773,27 @@ class AppointmentsService {
    * @returns {object} - Reschedule request
    */
   async requestReschedule(appointmentId, newScheduledAt, user, clientNote = null) {
-    // Get appointment details
     const appointment = await this.getById(appointmentId);
 
-    // Check ownership
     if (user.role === 'client' && appointment.client_id !== user.id) {
       throw new ForbiddenError('You can only reschedule your own appointments');
     }
 
-    // Check if already cancelled or completed
     if (['cancelled', 'cancelled_late', 'completed'].includes(appointment.status)) {
       throw new ValidationError(`Cannot reschedule ${appointment.status} appointment`);
     }
 
-    // Check if can reschedule (time-based)
     const rescheduleCheck = APPOINTMENT_RULES.canReschedule(appointment.scheduled_at);
 
     if (!rescheduleCheck.canReschedule) {
       throw new ValidationError(rescheduleCheck.message);
     }
 
-    // Check if new time is in the future
     const newDateTime = new Date(newScheduledAt);
     if (newDateTime < new Date()) {
       throw new ValidationError('New appointment time must be in the future');
     }
 
-    // Check if there's already a pending request for this appointment
     const [existingRequests] = await pool.query(
       `SELECT id FROM appointment_reschedule_requests
        WHERE appointment_id = ? AND status = 'pending'`,
@@ -867,7 +804,6 @@ class AppointmentsService {
       throw new ValidationError('There is already a pending reschedule request for this appointment');
     }
 
-    // Create reschedule request
     const [result] = await pool.query(
       `INSERT INTO appointment_reschedule_requests
        (appointment_id, old_scheduled_at, new_scheduled_at, requested_by, client_note)
@@ -929,7 +865,6 @@ class AppointmentsService {
    * @returns {object} - Approval result
    */
   async approveReschedule(requestId, reviewerUserId) {
-    // Get request details
     const [requests] = await pool.query(
       `SELECT rr.*, a.status as appointment_status
        FROM appointment_reschedule_requests rr
@@ -948,7 +883,6 @@ class AppointmentsService {
       throw new ValidationError(`Request has already been ${request.status}`);
     }
 
-    // Check if appointment is still valid
     if (['cancelled', 'cancelled_late', 'completed'].includes(request.appointment_status)) {
       throw new ValidationError(`Cannot reschedule ${request.appointment_status} appointment`);
     }
@@ -957,7 +891,6 @@ class AppointmentsService {
     try {
       await connection.beginTransaction();
 
-      // Update appointment time
       await connection.query(
         `UPDATE appointments
          SET scheduled_at = ?, updated_at = NOW()
@@ -965,7 +898,6 @@ class AppointmentsService {
         [request.new_scheduled_at, request.appointment_id]
       );
 
-      // Update request status
       await connection.query(
         `UPDATE appointment_reschedule_requests
          SET status = 'approved', reviewed_by = ?, reviewed_at = NOW()
@@ -996,7 +928,6 @@ class AppointmentsService {
    * @returns {object} - Rejection result
    */
   async rejectReschedule(requestId, reviewerUserId, rejectionReason = null) {
-    // Get request details
     const [requests] = await pool.query(
       'SELECT * FROM appointment_reschedule_requests WHERE id = ?',
       [requestId]
@@ -1025,6 +956,26 @@ class AppointmentsService {
       appointmentId: request.appointment_id,
       reason: rejectionReason,
     };
+  }
+
+  /**
+   * Force reschedule appointment by staff (receptionist/admin)
+   * Directly changes the appointment time and notifies the client via email
+   * @param {number} appointmentId
+   * @param {string} newScheduledAt - New appointment time (ISO string)
+   * @param {number} staffUserId - Staff member performing the reschedule
+   * @param {string} reason - Optional reason for rescheduling
+   * @param {number} newDoctorId - Optional new doctor ID (if changing doctor)
+   * @returns {object} - Result with old and new times
+   */
+  async forceReschedule(appointmentId, newScheduledAt, staffUserId, reason = null, newDoctorId = null) {
+    return appointmentRescheduleService.forceReschedule(
+      appointmentId,
+      newScheduledAt,
+      staffUserId,
+      reason,
+      newDoctorId
+    );
   }
 }
 

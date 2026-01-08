@@ -14,12 +14,14 @@ services:
       - DB_NAME=vetcrm
       - JWT_SECRET=change_this_to_something_secure_in_production
       - FRONTEND_URL=http://localhost:5173
+      - TZ=Europe/Warsaw
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - uploads_data:/app/uploads  # Persystentny volume dla plików użytkowników
     networks:
       - vetcrm-network
 
@@ -50,6 +52,7 @@ services:
       MYSQL_DATABASE: vetcrm
       MYSQL_USER: vetuser
       MYSQL_PASSWORD: vetpassword
+      TZ: Europe/Warsaw
     ports:
       - "3306:3306"
     volumes:
@@ -82,6 +85,7 @@ services:
 
 volumes:
   db_data:
+  uploads_data:  # Persystentne przechowywanie plików medycznych
 
 networks:
   vetcrm-network:

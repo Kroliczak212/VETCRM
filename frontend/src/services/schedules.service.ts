@@ -4,7 +4,7 @@ export interface Schedule {
   id: number;
   doctor_user_id: number;
   doctor_name: string;
-  date: string; // Date-specific override (YYYY-MM-DD)
+  date: string;
   start_time: string;
   end_time: string;
   is_recurring: boolean;
@@ -19,9 +19,9 @@ export interface Schedule {
 
 export interface CreateScheduleData {
   doctorId: number;
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string;   // HH:MM
+  date: string;
+  startTime: string;
+  endTime: string;
   isRecurring?: boolean;
   repeatPattern?: string;
   notes?: string;
@@ -42,11 +42,11 @@ export interface ApproveScheduleData {
 }
 
 export interface CalendarDay {
-  date: string; // YYYY-MM-DD
+  date: string;
   day_name: 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday';
   is_working: boolean;
-  start_time: string | null; // HH:MM:SS
-  end_time: string | null; // HH:MM:SS
+  start_time: string | null;
+  end_time: string | null;
   source: 'schedule' | 'working_hours' | 'none';
   notes: string | null;
 }
@@ -90,7 +90,6 @@ class SchedulesService {
 
 export const schedulesService = new SchedulesService();
 
-// Named exports for direct function calls
 export const getSchedules = async (params?: { doctorId?: number; date?: string; startDate?: string; endDate?: string; status?: string }) => {
   return schedulesService.getAll(params);
 };

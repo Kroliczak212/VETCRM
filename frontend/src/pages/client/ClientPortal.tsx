@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dog, Cat, Calendar, Syringe, FileText, Loader2, Eye, X, CalendarClock } from "lucide-react";
+import { Dog, Cat, Calendar, Syringe, FileText, Loader2, Eye, X, CalendarClock, Plus, Pencil, User } from "lucide-react";
 import { petsService, type Pet } from "@/services/pets.service";
 import { appointmentsService, type Appointment } from "@/services/appointments.service";
 import { vaccinationsService, type Vaccination } from "@/services/vaccinations.service";
@@ -13,6 +13,8 @@ import { authService } from "@/services/auth.service";
 import { AppointmentDetailsDialog } from "@/components/AppointmentDetailsDialog";
 import { CancelAppointmentDialog } from "@/components/CancelAppointmentDialog";
 import { RescheduleAppointmentDialog } from "@/components/RescheduleAppointmentDialog";
+import { EditProfileDialog } from "@/components/EditProfileDialog";
+import { PetFormDialog } from "@/components/PetFormDialog";
 
 const ClientPortal = () => {
   const navigate = useNavigate();
@@ -20,25 +22,26 @@ const ClientPortal = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
-  // Cancel and reschedule dialog state
   const [appointmentToCancel, setAppointmentToCancel] = useState<Appointment | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
 
-  // Fetch pets
+  // Profile and pet management dialogs
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isPetFormOpen, setIsPetFormOpen] = useState(false);
+  const [petToEdit, setPetToEdit] = useState<Pet | null>(null);
+
   const { data: petsData, isLoading: petsLoading } = useQuery({
     queryKey: ['pets', 'my'],
     queryFn: () => petsService.getAll({ limit: 100 }),
   });
 
-  // Fetch appointments
   const { data: appointmentsData, isLoading: appointmentsLoading } = useQuery({
     queryKey: ['appointments', 'my'],
     queryFn: () => appointmentsService.getAll({ limit: 100 }),
   });
 
-  // Fetch vaccinations for calendar
   const { data: vaccinationsData, isLoading: vaccinationsLoading } = useQuery({
     queryKey: ['vaccinations', 'my'],
     queryFn: () => vaccinationsService.getAll({ limit: 100 }),
@@ -48,11 +51,10 @@ const ClientPortal = () => {
   const allAppointments = appointmentsData?.data || [];
   const allVaccinations = vaccinationsData?.data || [];
 
-  // Filter upcoming appointments (not completed/cancelled)
   const upcomingAppointments = allAppointments
     .filter((apt: Appointment) => !['completed', 'cancelled', 'cancelled_late'].includes(apt.status))
     .sort((a: Appointment, b: Appointment) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-    .slice(0, 3); // Show max 3
+    .slice(0, 3);
 
   // Build vaccination calendar: upcoming vaccinations in next 90 days, sorted by due date
   const vaccinationCalendar = allVaccinations
@@ -103,7 +105,6 @@ const ClientPortal = () => {
     }
   };
 
-  // Get last visit date for a pet
   const getLastVisit = (petId: number): string => {
     const petAppointments = allAppointments
       .filter((apt: Appointment) => apt.pet_id === petId && apt.status === 'completed')
@@ -112,7 +113,6 @@ const ClientPortal = () => {
     return petAppointments.length > 0 ? formatDate(petAppointments[0].scheduled_at) : 'Brak wizyt';
   };
 
-  // Get next vaccination date for a pet
   const getNextVaccination = (petId: number): string => {
     const petVaccinations = allVaccinations
       .filter((vac: Vaccination) => vac.pet_id === petId)
@@ -121,7 +121,6 @@ const ClientPortal = () => {
     return petVaccinations.length > 0 ? formatDate(petVaccinations[0].next_due_date) : 'Brak';
   };
 
-  // Handle opening appointment details
   const handleViewAppointmentDetails = (appointmentId: number) => {
     setSelectedAppointmentId(appointmentId);
     setIsDetailsDialogOpen(true);
@@ -132,7 +131,6 @@ const ClientPortal = () => {
     setSelectedAppointmentId(null);
   };
 
-  // Handle cancel dialog
   const handleOpenCancelDialog = (appointment: Appointment) => {
     setAppointmentToCancel(appointment);
     setIsCancelDialogOpen(true);
@@ -143,7 +141,6 @@ const ClientPortal = () => {
     setAppointmentToCancel(null);
   };
 
-  // Handle reschedule dialog
   const handleOpenRescheduleDialog = (appointment: Appointment) => {
     setAppointmentToReschedule(appointment);
     setIsRescheduleDialogOpen(true);
@@ -167,19 +164,36 @@ const ClientPortal = () => {
   return (
     <AppLayout role="client">
       <header className="bg-card border-b border-border p-6 sticky top-0 z-10 backdrop-blur-sm bg-card/80">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Mój Portal</h1>
-          <p className="text-muted-foreground">
-            Witaj, {currentUser?.firstName || 'Użytkowniku'}
-          </p>
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Mój Portal</h1>
+            <p className="text-muted-foreground">
+              Witaj, {currentUser?.firstName || 'Użytkowniku'}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setIsEditProfileOpen(true)}
+          >
+            <User className="mr-2 h-4 w-4" />
+            Edytuj profil
+          </Button>
         </div>
       </header>
 
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* My Pets */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-foreground">Moje Zwierzęta</h2>
+            <Button
+              onClick={() => {
+                setPetToEdit(null);
+                setIsPetFormOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Dodaj zwierzę
+            </Button>
           </div>
 
           {myPets.length === 0 ? (
@@ -228,6 +242,16 @@ const ClientPortal = () => {
                       <div className="flex gap-2 pt-2">
                         <Button
                           variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPetToEdit(pet);
+                            setIsPetFormOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
                           className="flex-1"
                           onClick={() => navigate(`/client/pets/${pet.id}`)}
                         >
@@ -251,7 +275,6 @@ const ClientPortal = () => {
           )}
         </div>
 
-        {/* Upcoming Appointments */}
         {upcomingAppointments.length > 0 && (
           <Card>
             <CardHeader>
@@ -295,7 +318,6 @@ const ClientPortal = () => {
                       Zobacz
                     </Button>
                   </div>
-                  {/* Action buttons */}
                   <div className="flex gap-2 pt-2 border-t border-border/50">
                     <Button
                       variant="outline"
@@ -328,7 +350,6 @@ const ClientPortal = () => {
           </Card>
         )}
 
-        {/* Vaccination Calendar */}
         {vaccinationCalendar.length > 0 && (
           <Card>
             <CardHeader>
@@ -375,25 +396,37 @@ const ClientPortal = () => {
         )}
       </div>
 
-      {/* Appointment Details Dialog */}
       <AppointmentDetailsDialog
         appointmentId={selectedAppointmentId}
         isOpen={isDetailsDialogOpen}
         onClose={handleCloseDetailsDialog}
       />
 
-      {/* Cancel Appointment Dialog */}
       <CancelAppointmentDialog
         appointment={appointmentToCancel}
         isOpen={isCancelDialogOpen}
         onClose={handleCloseCancelDialog}
       />
 
-      {/* Reschedule Appointment Dialog */}
       <RescheduleAppointmentDialog
         appointment={appointmentToReschedule}
         isOpen={isRescheduleDialogOpen}
         onClose={handleCloseRescheduleDialog}
+      />
+
+      <EditProfileDialog
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+        user={currentUser}
+      />
+
+      <PetFormDialog
+        isOpen={isPetFormOpen}
+        onClose={() => {
+          setIsPetFormOpen(false);
+          setPetToEdit(null);
+        }}
+        pet={petToEdit}
       />
     </AppLayout>
   );

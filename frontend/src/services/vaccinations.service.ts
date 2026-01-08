@@ -14,11 +14,10 @@ export interface Vaccination {
   administered_by_name?: string;
   appointment_id?: number;
   notes?: string;
-  status?: 'current' | 'due_soon' | 'overdue'; // Computed by backend
+  status?: 'current' | 'due_soon' | 'overdue';
   created_at: string;
   updated_at: string;
 
-  // New vaccination system fields
   source?: 'manual' | 'appointment';
   added_by_user_id?: number;
   added_by_name?: string;
@@ -30,9 +29,10 @@ export interface Vaccination {
 
 export interface CreateVaccinationData {
   petId: number;
-  vaccineName: string;
+  vaccinationTypeId: number;
+  vaccineName?: string;
   vaccinationDate: string;
-  nextDueDate?: string; // Optional, backend will calculate (+1 year) if not provided
+  nextDueDate?: string;
   batchNumber?: string;
   appointmentId?: number;
   notes?: string;
@@ -54,26 +54,16 @@ export interface GetVaccinationsParams {
 }
 
 class VaccinationsService {
-  /**
-   * Get all vaccinations (auto-filtered for clients)
-   */
   async getAll(params?: GetVaccinationsParams) {
     const { data } = await apiClient.get<{ data: Vaccination[]; pagination: any }>('/vaccinations', { params });
     return data;
   }
 
-  /**
-   * Get vaccination by ID
-   */
   async getById(id: number) {
     const { data } = await apiClient.get<{ vaccination: Vaccination }>(`/vaccinations/${id}`);
     return data.vaccination;
   }
 
-  /**
-   * Get upcoming vaccinations for a specific pet
-   * Used for calendar view
-   */
   async getUpcomingByPet(petId: number, daysAhead: number = 90) {
     const { data } = await apiClient.get<{ vaccinations: Vaccination[] }>(`/vaccinations/pet/${petId}/upcoming`, {
       params: { daysAhead }
@@ -81,28 +71,16 @@ class VaccinationsService {
     return data.vaccinations;
   }
 
-  /**
-   * Create new vaccination record
-   * Only accessible to staff/doctors
-   */
   async create(vaccinationData: CreateVaccinationData) {
     const { data } = await apiClient.post<{ message: string; vaccination: Vaccination }>('/vaccinations', vaccinationData);
     return data;
   }
 
-  /**
-   * Update vaccination record
-   * Only accessible to staff/doctors
-   */
   async update(id: number, vaccinationData: UpdateVaccinationData) {
     const { data } = await apiClient.put<{ message: string; vaccination: Vaccination }>(`/vaccinations/${id}`, vaccinationData);
     return data;
   }
 
-  /**
-   * Delete vaccination record
-   * Only accessible to staff/doctors
-   */
   async delete(id: number) {
     const { data } = await apiClient.delete<{ message: string }>(`/vaccinations/${id}`);
     return data;

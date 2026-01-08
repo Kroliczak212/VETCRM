@@ -40,20 +40,17 @@ export default function StaffManagement() {
     phone: "",
   });
 
-  // Fetch all staff
   const { data: staffData, isLoading } = useQuery({
     queryKey: ['users', 'staff', searchTerm],
     queryFn: () => usersService.getAll({ search: searchTerm, limit: 100 }),
   });
 
-  // Create staff mutation
   const createStaffMutation = useMutation({
     mutationFn: (data: CreateUserData) => usersService.create(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsAddDialogOpen(false);
 
-      // Show temporary password if it was auto-generated
       if (response.data.temporaryPassword) {
         setTemporaryPasswordDialog({
           isOpen: true,
@@ -82,7 +79,6 @@ export default function StaffManagement() {
     },
   });
 
-  // Delete staff mutation
   const deleteStaffMutation = useMutation({
     mutationFn: (id: number) => usersService.delete(id),
     onSuccess: () => {
@@ -98,7 +94,6 @@ export default function StaffManagement() {
     },
   });
 
-  // Toggle is_active mutation
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       usersService.updateIsActive(id, isActive),
@@ -164,7 +159,6 @@ export default function StaffManagement() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Tutaj będzie kalendarz z grafikami pracowników
                   </p>
-                  {/* Kalendarz grafików - do implementacji */}
                 </div>
               </DialogContent>
             </Dialog>
@@ -413,7 +407,6 @@ export default function StaffManagement() {
           </TabsContent>
         </Tabs>
 
-        {/* Temporary Password Dialog */}
         <Dialog open={temporaryPasswordDialog.isOpen} onOpenChange={(open) => setTemporaryPasswordDialog({ ...temporaryPasswordDialog, isOpen: open })}>
           <DialogContent className="max-w-md">
             <DialogHeader>

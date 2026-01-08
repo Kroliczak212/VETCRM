@@ -1,4 +1,5 @@
 const penaltiesService = require('../services/penalties.service');
+const { ForbiddenError } = require('../utils/errors');
 
 class PenaltiesController {
   /**
@@ -21,6 +22,12 @@ class PenaltiesController {
   async getById(req, res, next) {
     try {
       const penalty = await penaltiesService.getById(parseInt(req.params.id));
+
+      // Authorization: client can only view their own penalties
+      if (req.user.role === 'client' && penalty.client_user_id !== req.user.id) {
+        throw new ForbiddenError('You can only view your own penalties');
+      }
+
       res.json(penalty);
     } catch (error) {
       next(error);
@@ -33,9 +40,14 @@ class PenaltiesController {
    */
   async getByClientId(req, res, next) {
     try {
-      const penalties = await penaltiesService.getByClientId(
-        parseInt(req.params.clientId)
-      );
+      const requestedClientId = parseInt(req.params.clientId);
+
+      // Authorization: client can only view their own penalties
+      if (req.user.role === 'client' && requestedClientId !== req.user.id) {
+        throw new ForbiddenError('You can only view your own penalties');
+      }
+
+      const penalties = await penaltiesService.getByClientId(requestedClientId);
       res.json(penalties);
     } catch (error) {
       next(error);

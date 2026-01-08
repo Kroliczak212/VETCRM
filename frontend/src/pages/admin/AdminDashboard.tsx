@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Stethoscope, Calendar, DollarSign, TrendingUp, Activity, Loader2 } from "lucide-react";
+import { Users, Stethoscope, Calendar, TrendingUp, Activity, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminStatistics, AdminStatistics, formatAppointmentStatus } from "@/services/dashboard.service";
 
@@ -31,17 +31,6 @@ const AdminDashboard = () => {
     fetchStatistics();
   }, [toast]);
 
-  // Helper: Format currency
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("pl-PL", {
-      style: "currency",
-      currency: "PLN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  // Helper: Format relative time
   const formatRelativeTime = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
@@ -98,13 +87,6 @@ const AdminDashboard = () => {
       trend: "Łącznie umówione",
       color: "text-accent",
     },
-    {
-      title: "Przychód",
-      value: formatCurrency(statistics.totalRevenue),
-      icon: DollarSign,
-      trend: "Opłacone wizyty",
-      color: "text-primary",
-    },
   ];
 
   return (
@@ -119,8 +101,7 @@ const AdminDashboard = () => {
       </header>
 
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {stats.map((stat, index) => (
             <Card
               key={stat.title}
@@ -144,7 +125,6 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* Appointments by Status */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -169,7 +149,6 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -227,42 +206,6 @@ const AdminDashboard = () => {
                 ))
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Monthly Revenue */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Miesięczny Przychód
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statistics.monthlyRevenue.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Brak danych o przychodach
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {statistics.monthlyRevenue.map((item) => (
-                  <div
-                    key={item.month}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
-                  >
-                    <span className="text-sm font-medium text-foreground">
-                      {new Date(item.month + "-01").toLocaleDateString("pl-PL", {
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </span>
-                    <span className="text-lg font-bold text-primary">
-                      {formatCurrency(item.revenue)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

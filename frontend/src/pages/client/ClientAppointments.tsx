@@ -70,41 +70,55 @@ const ClientAppointments = () => {
     },
   });
 
-  // Fetch appointments using React Query
   const { data: appointmentsData, isLoading: appointmentsLoading, refetch: refetchAppointments } = useQuery({
     queryKey: ['appointments', 'my'],
     queryFn: () => appointmentsService.getAll({ limit: 100 }),
   });
 
-  // Fetch pets using React Query
   const { data: petsData, isLoading: petsLoading } = useQuery({
     queryKey: ['pets', 'my'],
     queryFn: () => petsService.getAll({ limit: 100 }),
   });
 
-  // Fetch doctors using React Query
   const { data: doctorsData, isLoading: doctorsLoading } = useQuery({
     queryKey: ['users', 'doctors'],
     queryFn: () => usersService.getDoctors(),
   });
 
-  // Fetch appointment reasons using React Query
   const { data: appointmentReasonsData } = useQuery({
     queryKey: ['appointment-reasons', 'active'],
     queryFn: () => appointmentReasonsService.getAll({ isActive: true, limit: 100 }),
   });
 
   // Fetch vaccination types based on selected pet species
+  // If no vaccines exist for the specific species, fallback to "inne" (other)
   const { data: vaccinationTypesData } = useQuery({
     queryKey: ['vaccination-types', selectedPetSpecies],
-    queryFn: () => vaccinationTypesService.getAll({ species: selectedPetSpecies, isActive: true, limit: 100 }),
+    queryFn: async () => {
+      // First try to get vaccines for the specific species
+      const result = await vaccinationTypesService.getAll({
+        species: selectedPetSpecies,
+        isActive: true,
+        limit: 100
+      });
+
+      // If no vaccines found for this species, try "inne" (other) category
+      if (result.data.length === 0) {
+        const fallbackResult = await vaccinationTypesService.getAll({
+          species: 'inne',
+          isActive: true,
+          limit: 100
+        });
+        return fallbackResult;
+      }
+
+      return result;
+    },
     enabled: !!selectedPetSpecies && selectedReasonIsVaccination,
   });
 
-  // Get selected doctor ID from form
   const selectedDoctorId = form.watch('doctorId');
 
-  // Fetch available slots when doctor and date are selected
   const { data: availableSlots, isLoading: slotsLoading } = useQuery({
     queryKey: ['available-slots', selectedDoctorId, selectedDateForSlots],
     queryFn: () => appointmentsService.getAvailableSlots({
@@ -120,12 +134,10 @@ const ClientAppointments = () => {
   const appointmentReasons = appointmentReasonsData?.data || [];
   const vaccinationTypes = vaccinationTypesData?.data || [];
 
-  // Filter appointments by petId if provided in URL
   const appointments = filterPetId
     ? allAppointments.filter(a => a.pet_id === parseInt(filterPetId))
     : allAppointments;
 
-  // Find the filtered pet's name for display
   const filteredPet = filterPetId
     ? pets.find(p => p.id === parseInt(filterPetId))
     : null;
@@ -152,7 +164,6 @@ const ClientAppointments = () => {
     try {
       setSubmitting(true);
 
-      // Validate that a slot is selected
       if (!selectedSlot) {
         toast({
           title: "Błąd",
@@ -163,7 +174,6 @@ const ClientAppointments = () => {
         return;
       }
 
-      // Combine date and selected slot time into ISO string
       const scheduledAt = `${data.selectedDate}T${selectedSlot}:00.000Z`;
 
       await appointmentsService.create({
@@ -175,7 +185,7 @@ const ClientAppointments = () => {
         vaccinationTypeId: data.vaccinationTypeId ? parseInt(data.vaccinationTypeId) : undefined,
         reason: data.reason,
         location: data.location,
-        status: "proposed", // Client appointments start as "proposed"
+        status: "proposed",
       });
 
       toast({
@@ -183,7 +193,6 @@ const ClientAppointments = () => {
         description: "Twoja propozycja wizyty została wysłana. Otrzymasz potwierdzenie po zaakceptowaniu przez recepcję.",
       });
 
-      // Refresh appointments list
       await refetchAppointments();
 
       setDialogOpen(false);
@@ -202,7 +211,6 @@ const ClientAppointments = () => {
     }
   };
 
-  // Handle cancel dialog
   const handleOpenCancelDialog = (appointment: Appointment) => {
     setAppointmentToCancel(appointment);
     setIsCancelDialogOpen(true);
@@ -213,7 +221,6 @@ const ClientAppointments = () => {
     setAppointmentToCancel(null);
   };
 
-  // Handle reschedule dialog
   const handleOpenRescheduleDialog = (appointment: Appointment) => {
     setAppointmentToReschedule(appointment);
     setIsRescheduleDialogOpen(true);
@@ -280,7 +287,6 @@ const ClientAppointments = () => {
 
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  {/* Pet and Doctor - 2 column grid */}
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -360,7 +366,6 @@ const ClientAppointments = () => {
                     />
                   </div>
 
-                  {/* Reason and Location - 2 column grid */}
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -586,7 +591,7 @@ const ClientAppointments = () => {
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="font-bold text-lg text-foreground mb-1">
-                              {appointment.reason || "Wizyta"}
+                              {appointment.reason_name || appointment.reason || "Wizyta"}
                             </h3>
                             {getStatusBadge(appointment.status)}
                           </div>
@@ -683,7 +688,7 @@ const ClientAppointments = () => {
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h3 className="font-bold text-lg text-foreground mb-1">
-                              {appointment.reason || "Wizyta"}
+                              {appointment.reason_name || appointment.reason || "Wizyta"}
                             </h3>
                             {getStatusBadge(appointment.status)}
                           </div>
@@ -718,21 +723,18 @@ const ClientAppointments = () => {
         </div>
       </div>
 
-      {/* Cancel Appointment Dialog */}
       <CancelAppointmentDialog
         appointment={appointmentToCancel}
         isOpen={isCancelDialogOpen}
         onClose={handleCloseCancelDialog}
       />
 
-      {/* Reschedule Appointment Dialog */}
       <RescheduleAppointmentDialog
         appointment={appointmentToReschedule}
         isOpen={isRescheduleDialogOpen}
         onClose={handleCloseRescheduleDialog}
       />
 
-      {/* Appointment Details Dialog */}
       <AppointmentDetailsDialog
         appointmentId={selectedAppointmentId}
         isOpen={isAppointmentDetailsDialogOpen}

@@ -53,7 +53,6 @@ class MedicalRecordsService {
 
     const record = records[0];
 
-    // Get attached files
     const [files] = await pool.query(
       'SELECT * FROM medical_files WHERE medical_record_id = ? ORDER BY uploaded_at',
       [recordId]
@@ -70,13 +69,11 @@ class MedicalRecordsService {
     try {
       await connection.beginTransaction();
 
-      // Verify appointment exists
       const [appointments] = await connection.query('SELECT id FROM appointments WHERE id = ?', [appointmentId]);
       if (appointments.length === 0) {
         throw new NotFoundError('Appointment');
       }
 
-      // Insert medical record
       const [result] = await connection.query(
         `INSERT INTO medical_records (appointment_id, notes, diagnosis, treatment, prescription, created_by_user_id)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -135,10 +132,8 @@ class MedicalRecordsService {
     try {
       await connection.beginTransaction();
 
-      // Delete files first
       await connection.query('DELETE FROM medical_files WHERE medical_record_id = ?', [recordId]);
 
-      // Delete record
       await connection.query('DELETE FROM medical_records WHERE id = ?', [recordId]);
 
       await connection.commit();
@@ -155,11 +150,36 @@ class MedicalRecordsService {
   async addFile(recordId, file) {
     await this.getById(recordId);
 
-    const [result] = await pool.query(
-      `INSERT INTO medical_files (medical_record_id, file_path, file_type)
-       VALUES (?, ?, ?)`,
-      [recordId, file.path, path.extname(file.originalname)]
+    // Check if new columns exist (migration might not be applied yet)
+    const [columns] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_NAME = 'medical_files' AND TABLE_SCHEMA = DATABASE()`
     );
+    const columnNames = columns.map(c => c.COLUMN_NAME);
+    const hasFileNameColumn = columnNames.includes('file_name');
+    const hasFileSizeColumn = columnNames.includes('file_size');
+
+    let result;
+    if (hasFileNameColumn && hasFileSizeColumn) {
+      [result] = await pool.query(
+        `INSERT INTO medical_files (medical_record_id, file_name, file_path, file_type, file_size)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          recordId,
+          file.originalname,
+          file.path,
+          file.detectedMimeType || path.extname(file.originalname),
+          file.size || file.buffer?.length || 0
+        ]
+      );
+    } else {
+      // Fallback for old schema
+      [result] = await pool.query(
+        `INSERT INTO medical_files (medical_record_id, file_path, file_type)
+         VALUES (?, ?, ?)`,
+        [recordId, file.path, path.extname(file.originalname)]
+      );
+    }
 
     const [files] = await pool.query(
       'SELECT * FROM medical_files WHERE id = ?',
@@ -179,6 +199,51 @@ class MedicalRecordsService {
     await pool.query('DELETE FROM medical_files WHERE id = ?', [fileId]);
 
     return { message: 'File deleted successfully' };
+  }
+
+  /**
+   * Get file for download with authorization check
+   */
+  async getFileForDownload(fileId, user) {
+    const fs = require('fs');
+    const { ForbiddenError } = require('../utils/errors');
+
+    const [files] = await pool.query(`
+      SELECT mf.*, mr.appointment_id, mr.created_by_user_id,
+             a.pet_id, p.owner_user_id
+      FROM medical_files mf
+      JOIN medical_records mr ON mf.medical_record_id = mr.id
+      JOIN appointments a ON mr.appointment_id = a.id
+      JOIN pets p ON a.pet_id = p.id
+      WHERE mf.id = ?
+    `, [fileId]);
+
+    if (files.length === 0) {
+      throw new NotFoundError('File');
+    }
+
+    const file = files[0];
+
+    // Authorization check
+    // Can download if:
+    // - Admin (role_id = 1)
+    // - Doctor who created the medical record
+    // - Client who owns the pet
+    const canAccess =
+      user.role_id === 1 || // Admin
+      user.id === file.created_by_user_id || // Doctor who created record
+      user.id === file.owner_user_id; // Pet owner
+
+    if (!canAccess) {
+      throw new ForbiddenError('You do not have access to this file');
+    }
+
+    const filePath = path.join(__dirname, '../../', file.file_path);
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('File not found on disk');
+    }
+
+    return { file, filePath };
   }
 }
 

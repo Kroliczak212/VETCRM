@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, User, PawPrint, FileText, CheckCircle, XCircle, Loader2, Search, Upload } from "lucide-react";
+import { Calendar, Clock, User, PawPrint, FileText, CheckCircle, XCircle, Loader2, Search, Upload, Syringe, Download, Eye, File, Image } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +22,7 @@ import { petsService } from "@/services/pets.service";
 import { authService } from "@/services/auth.service";
 
 const DoctorAppointments = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
@@ -32,11 +37,13 @@ const DoctorAppointments = () => {
     notes: ""
   });
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [vaccinationPerformed, setVaccinationPerformed] = useState<boolean | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogMessage, setConfirmDialogMessage] = useState("");
 
   const currentUser = authService.getCurrentUser();
   const doctorId = currentUser?.id;
 
-  // Fetch appointments for the logged-in doctor
   const { data: appointmentsData, isLoading } = useQuery({
     queryKey: ['appointments', 'doctor', doctorId, statusFilter],
     queryFn: () => appointmentsService.getAll({
@@ -49,10 +56,8 @@ const DoctorAppointments = () => {
 
   const allAppointments = appointmentsData?.data || [];
 
-  // Filter appointments by search term and custom logic for "all" filter
   const appointments = allAppointments
     .filter(apt => {
-      // Custom filtering for "all" - exclude pending/cancelled/completed by default
       if (statusFilter === 'all') {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -60,21 +65,17 @@ const DoctorAppointments = () => {
         aptDate.setHours(0, 0, 0, 0);
         const isToday = aptDate.getTime() === today.getTime();
 
-        // Show in_progress and confirmed always
-        // Show completed only if from today
         if (apt.status === 'in_progress' || apt.status === 'confirmed') {
           return true;
         }
         if (apt.status === 'completed' && isToday) {
           return true;
         }
-        // Hide proposed, cancelled, cancelled_late, and old completed
         return false;
       }
       return true;
     })
     .filter(apt => {
-      // Search filter
       if (!searchTerm) return true;
 
       const search = searchTerm.toLowerCase();
@@ -89,7 +90,6 @@ const DoctorAppointments = () => {
              reason.includes(search);
     })
     .sort((a, b) => {
-      // Sort by status priority first
       const statusPriority: Record<string, number> = {
         'in_progress': 0,
         'confirmed': 1,
@@ -106,27 +106,24 @@ const DoctorAppointments = () => {
         return priorityA - priorityB;
       }
 
-      // Then sort by scheduled date (earlier first)
       return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
     });
 
-  // Fetch pet details when dialog is open
   const { data: petData } = useQuery({
     queryKey: ['pet', selectedAppointment?.pet_id],
     queryFn: () => petsService.getById(selectedAppointment!.pet_id),
     enabled: !!selectedAppointment?.pet_id,
   });
 
-  // Update appointment status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: Appointment['status'] }) =>
-      appointmentsService.updateStatus(id, status),
-    onSuccess: () => {
+    mutationFn: ({ id, status, vaccinationPerformed }: { id: number; status: Appointment['status']; vaccinationPerformed?: boolean }) =>
+      appointmentsService.updateStatus(id, status, vaccinationPerformed),
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['appointments', 'doctor'] });
-      toast({
-        title: "Sukces",
-        description: "Status wizyty został zaktualizowany",
-      });
+      if (selectedAppointment?.pet_id) {
+        queryClient.invalidateQueries({ queryKey: ['vaccinations', 'pet', selectedAppointment.pet_id.toString()] });
+        queryClient.invalidateQueries({ queryKey: ['appointments', 'pet', selectedAppointment.pet_id.toString()] });
+      }
     },
     onError: (error: any) => {
       toast({
@@ -137,11 +134,9 @@ const DoctorAppointments = () => {
     },
   });
 
-  // Save medical record mutation
   const saveMedicalRecordMutation = useMutation({
     mutationFn: async (data: CreateMedicalRecordData) => {
       const result = await medicalRecordsService.create(data);
-      // Upload files if any
       if (uploadedFiles.length > 0 && result.medicalRecord) {
         for (const file of uploadedFiles) {
           await medicalRecordsService.uploadFile(result.medicalRecord.id, file);
@@ -151,11 +146,14 @@ const DoctorAppointments = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments', 'doctor'] });
+      if (selectedAppointment?.pet_id) {
+        queryClient.invalidateQueries({ queryKey: ['pet', selectedAppointment.pet_id] });
+        queryClient.invalidateQueries({ queryKey: ['appointments', 'pet', selectedAppointment.pet_id.toString()] });
+      }
       toast({
         title: "Sukces",
         description: "Dokumentacja medyczna została zapisana",
       });
-      // Reset form
       setMedicalRecordData({ diagnosis: "", treatment: "", prescription: "", notes: "" });
       setUploadedFiles([]);
     },
@@ -168,7 +166,6 @@ const DoctorAppointments = () => {
     },
   });
 
-  // Auto-update past appointments that weren't started or completed
   useEffect(() => {
     if (!allAppointments || allAppointments.length === 0) return;
 
@@ -185,18 +182,13 @@ const DoctorAppointments = () => {
       }
     });
 
-    // Update appointments if any found
     if (appointmentsToUpdate.length > 0) {
       appointmentsToUpdate.forEach((appointment) => {
         updateStatusMutation.mutate(
           { id: appointment.id, status: 'cancelled' },
           {
-            onSuccess: () => {
-              // Silent update - don't show toast for auto-updates
-            },
-            onError: () => {
-              // Silent error handling for auto-updates
-            },
+            onSuccess: () => {},
+            onError: () => {},
           }
         );
       });
@@ -222,8 +214,44 @@ const DoctorAppointments = () => {
     );
   };
 
+  const areAllFieldsEmpty = () => {
+    return (
+      !medicalRecordData.diagnosis?.trim() &&
+      !medicalRecordData.treatment?.trim() &&
+      !medicalRecordData.prescription?.trim() &&
+      !medicalRecordData.notes?.trim() &&
+      uploadedFiles.length === 0
+    );
+  };
+
+  const areKeyMedicalFieldsEmpty = () => {
+    return (
+      !medicalRecordData.diagnosis?.trim() &&
+      !medicalRecordData.treatment?.trim() &&
+      !medicalRecordData.prescription?.trim()
+    );
+  };
+
+  const hasAnyFieldData = () => {
+    return (
+      medicalRecordData.diagnosis?.trim() ||
+      medicalRecordData.treatment?.trim() ||
+      medicalRecordData.prescription?.trim() ||
+      medicalRecordData.notes?.trim() ||
+      uploadedFiles.length > 0
+    );
+  };
+
+  const getFilledFields = () => {
+    const fields: any = {};
+    if (medicalRecordData.diagnosis?.trim()) fields.diagnosis = medicalRecordData.diagnosis;
+    if (medicalRecordData.treatment?.trim()) fields.treatment = medicalRecordData.treatment;
+    if (medicalRecordData.prescription?.trim()) fields.prescription = medicalRecordData.prescription;
+    if (medicalRecordData.notes?.trim()) fields.notes = medicalRecordData.notes;
+    return fields;
+  };
+
   const handleStartAppointment = (appointment: Appointment) => {
-    // Change status to in_progress and open dialog
     setSelectedAppointment(appointment);
     updateStatusMutation.mutate(
       { id: appointment.id, status: 'in_progress' },
@@ -238,33 +266,109 @@ const DoctorAppointments = () => {
   const handleCompleteAppointment = async () => {
     if (!selectedAppointment) return;
 
-    // Save medical record if there's any data
-    if (medicalRecordData.diagnosis || medicalRecordData.treatment || medicalRecordData.notes || medicalRecordData.prescription) {
-      await saveMedicalRecordMutation.mutateAsync({
-        appointmentId: selectedAppointment.id,
-        ...medicalRecordData
+    if (selectedAppointment.reason_is_vaccination && vaccinationPerformed === null) {
+      toast({
+        title: "Wymagane potwierdzenie",
+        description: "Musisz zaznaczyć, czy szczepienie zostało wykonane.",
+        variant: "destructive",
       });
+      return;
     }
 
-    // Change status to completed
-    updateStatusMutation.mutate(
-      { id: selectedAppointment.id, status: 'completed' },
-      {
-        onSuccess: () => {
-          setActiveAppointmentDialog(false);
-          setSelectedAppointment(null);
-          setMedicalRecordData({ diagnosis: "", treatment: "", prescription: "", notes: "" });
-          setUploadedFiles([]);
-        }
+    if (areAllFieldsEmpty()) {
+      setConfirmDialogMessage("Nie wypełniono żadnego pola dokumentacji. Czy na pewno chcesz zakończyć wizytę?");
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    if (areKeyMedicalFieldsEmpty() && hasAnyFieldData()) {
+      setConfirmDialogMessage("Nie wypełniono kluczowych pól medycznych (rozpoznanie, leczenie, recepta). Czy na pewno chcesz zakończyć wizytę?");
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    await completeAppointmentWithData();
+  };
+
+  const completeAppointmentWithData = async () => {
+    if (!selectedAppointment) return;
+
+    try {
+      if (hasAnyFieldData()) {
+        const filledFields = getFilledFields();
+        await saveMedicalRecordMutation.mutateAsync({
+          appointmentId: selectedAppointment.id,
+          ...filledFields
+        });
       }
-    );
+
+      const result = await updateStatusMutation.mutateAsync({
+        id: selectedAppointment.id,
+        status: 'completed',
+        vaccinationPerformed: selectedAppointment.reason_is_vaccination ? vaccinationPerformed : undefined
+      });
+
+      if (selectedAppointment.reason_is_vaccination) {
+        if (vaccinationPerformed && result?.appointment?.vaccinationCreated) {
+          toast({
+            title: "Wizyta zakończona",
+            description: `Szczepienie ${selectedAppointment.vaccination_type_name} zostało zapisane w historii pacjenta.`,
+          });
+        } else if (vaccinationPerformed && !result?.appointment?.vaccinationCreated) {
+          toast({
+            title: "Wizyta zakończona",
+            description: "Uwaga: Nie udało się automatycznie zapisać szczepienia. Dodaj je ręcznie w karcie pacjenta.",
+            variant: "destructive",
+          });
+        } else if (!vaccinationPerformed && result?.appointment?.medicalRecordCreated) {
+          toast({
+            title: "Wizyta zakończona",
+            description: "Szczepienie nie zostało wykonane. Informacja została zapisana w dokumentacji medycznej.",
+          });
+        } else {
+          toast({
+            title: "Wizyta zakończona",
+            description: "Wizyta zakończona bez zapisu szczepienia.",
+          });
+        }
+      } else {
+        toast({
+          title: "Wizyta zakończona",
+          description: "Dokumentacja medyczna została zapisana.",
+        });
+      }
+
+      setActiveAppointmentDialog(false);
+      setSelectedAppointment(null);
+      setMedicalRecordData({ diagnosis: "", treatment: "", prescription: "", notes: "" });
+      setUploadedFiles([]);
+      setVaccinationPerformed(null);
+
+    } catch (error: any) {
+      toast({
+        title: "Błąd",
+        description: error.response?.data?.error || "Nie udało się zakończyć wizyty",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSaveMedicalRecord = () => {
     if (!selectedAppointment) return;
+
+    if (!hasAnyFieldData()) {
+      toast({
+        title: "Brak danych",
+        description: "Wypełnij przynajmniej jedno pole dokumentacji przed zapisaniem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const filledFields = getFilledFields();
     saveMedicalRecordMutation.mutate({
       appointmentId: selectedAppointment.id,
-      ...medicalRecordData
+      ...filledFields
     });
   };
 
@@ -283,6 +387,41 @@ const DoctorAppointments = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("pl-PL");
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) return Image;
+    return File;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleDownloadFile = async (fileId: number) => {
+    try {
+      await medicalRecordsService.downloadFile(fileId);
+    } catch (error: any) {
+      toast({
+        title: "Błąd",
+        description: error.response?.data?.error || "Nie udało się pobrać pliku",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePreviewFile = async (fileId: number) => {
+    try {
+      await medicalRecordsService.previewFile(fileId);
+    } catch (error: any) {
+      toast({
+        title: "Błąd",
+        description: error.response?.data?.error || "Nie udało się otworzyć podglądu pliku",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -305,7 +444,6 @@ const DoctorAppointments = () => {
         </header>
 
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -356,7 +494,6 @@ const DoctorAppointments = () => {
             </Card>
           </div>
 
-          {/* Filters */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex gap-4">
@@ -387,7 +524,6 @@ const DoctorAppointments = () => {
             </CardContent>
           </Card>
 
-          {/* Appointments Timeline */}
           <div className="space-y-4">
             {appointments.length === 0 ? (
               <Card>
@@ -402,7 +538,6 @@ const DoctorAppointments = () => {
                 <Card key={appointment.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="pt-6">
                     <div className="flex flex-col lg:flex-row gap-6">
-                      {/* Time */}
                       <div className="flex lg:flex-col items-center lg:items-start gap-2 lg:w-32">
                         <div className="text-center">
                           <p className="text-2xl font-bold text-primary">{formatTime(appointment.scheduled_at)}</p>
@@ -411,7 +546,6 @@ const DoctorAppointments = () => {
                         </div>
                       </div>
 
-                      {/* Details */}
                       <div className="flex-1 space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
@@ -442,7 +576,6 @@ const DoctorAppointments = () => {
                           </div>
                         </div>
 
-                        {/* Actions */}
                         <div className="flex gap-2 pt-2">
                           {(appointment.status === "confirmed" || appointment.status === "proposed") && (
                             <>
@@ -480,7 +613,11 @@ const DoctorAppointments = () => {
                             </Button>
                           )}
                           {appointment.status === "completed" && (
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/doctor/patients/${appointment.pet_id}`)}
+                            >
                               <FileText className="mr-2 h-4 w-4" />
                               Zobacz historię
                             </Button>
@@ -495,7 +632,6 @@ const DoctorAppointments = () => {
           </div>
         </div>
 
-        {/* Active Appointment Dialog */}
         <Dialog open={activeAppointmentDialog} onOpenChange={setActiveAppointmentDialog}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -518,7 +654,6 @@ const DoctorAppointments = () => {
                   <TabsTrigger value="documentation">Dokumentacja</TabsTrigger>
                 </TabsList>
 
-                {/* Patient Info Tab */}
                 <TabsContent value="patient" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -583,7 +718,6 @@ const DoctorAppointments = () => {
                   </div>
                 </TabsContent>
 
-                {/* Medical History Tab */}
                 <TabsContent value="history" className="space-y-4">
                   {petData?.medical_history && petData.medical_history.length > 0 ? (
                     petData.medical_history.map((record: any, idx: number) => (
@@ -611,6 +745,12 @@ const DoctorAppointments = () => {
                                 <p className="text-sm mt-1">{record.treatment}</p>
                               </div>
                             )}
+                            {record.prescription && (
+                              <div>
+                                <Label className="text-sm text-muted-foreground">Recepta:</Label>
+                                <p className="text-sm mt-1">{record.prescription}</p>
+                              </div>
+                            )}
                             {record.notes && (
                               <div>
                                 <Label className="text-sm text-muted-foreground">Notatki:</Label>
@@ -620,6 +760,45 @@ const DoctorAppointments = () => {
                             <p className="text-xs text-muted-foreground">
                               Lekarz: {record.doctor_name}
                             </p>
+                            {record.files && record.files.length > 0 && (
+                              <div className="mt-3 pt-3 border-t">
+                                <Label className="text-sm text-muted-foreground mb-2 block">Załączone pliki:</Label>
+                                <div className="space-y-2">
+                                  {record.files.map((file: any) => {
+                                    const FileIcon = getFileIcon(file.file_type);
+                                    return (
+                                      <div key={file.id} className="flex items-center justify-between bg-muted/50 p-2 rounded">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                          <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium truncate">{file.file_name}</p>
+                                            <p className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-1 ml-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handlePreviewFile(file.id)}
+                                            title="Podgląd"
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDownloadFile(file.id)}
+                                            title="Pobierz"
+                                          >
+                                            <Download className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -631,8 +810,63 @@ const DoctorAppointments = () => {
                   )}
                 </TabsContent>
 
-                {/* Documentation Tab */}
                 <TabsContent value="documentation" className="space-y-4">
+                  {selectedAppointment.reason_is_vaccination && selectedAppointment.vaccination_type_name && (
+                    <Alert className="border-blue-200 bg-blue-50">
+                      <Syringe className="h-4 w-4 text-blue-600" />
+                      <AlertTitle className="text-blue-900">Wizyta szczepienia</AlertTitle>
+                      <AlertDescription className="text-blue-800">
+                        <p className="mb-3">
+                          Ta wizyta dotyczy szczepienia: <strong>{selectedAppointment.vaccination_type_name}</strong>
+                        </p>
+                        <div className="bg-white rounded-md p-4 border border-blue-200 space-y-3">
+                          <Label className="text-sm font-semibold text-gray-900">
+                            Czy szczepienie zostało wykonane? *
+                          </Label>
+                          <div className="flex items-center justify-between gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setVaccinationPerformed(false)}
+                              className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
+                                vaccinationPerformed === false
+                                  ? 'bg-red-100 text-red-700 border-2 border-red-500'
+                                  : 'bg-gray-100 text-gray-600 border-2 border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              NIE
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setVaccinationPerformed(true)}
+                              className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
+                                vaccinationPerformed === true
+                                  ? 'bg-green-100 text-green-700 border-2 border-green-500'
+                                  : 'bg-gray-100 text-gray-600 border-2 border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              TAK
+                            </button>
+                          </div>
+                          {vaccinationPerformed === null && (
+                            <p className="text-xs text-gray-600 italic">
+                              ⚠️ Wybierz TAK lub NIE aby zakończyć wizytę
+                            </p>
+                          )}
+                          {vaccinationPerformed === true && (
+                            <p className="text-xs text-green-700">
+                              ✓ Szczepienie zostanie automatycznie zapisane w historii pacjenta
+                            </p>
+                          )}
+                          {vaccinationPerformed === false && (
+                            <p className="text-xs text-red-700">
+                              ℹ️ Wizyta zostanie zakończona bez zapisu szczepienia. Informacja zostanie zapisana w dokumentacji medycznej.
+                            </p>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="diagnosis">Rozpoznanie</Label>
@@ -750,7 +984,6 @@ const DoctorAppointments = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Preview Dialog (before starting appointment) */}
         <Dialog open={previewDialog} onOpenChange={setPreviewDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -843,6 +1076,26 @@ const DoctorAppointments = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Potwierdzenie zakończenia wizyty</AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmDialogMessage}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Anuluj</AlertDialogCancel>
+              <AlertDialogAction onClick={async () => {
+                setShowConfirmDialog(false);
+                await completeAppointmentWithData();
+              }}>
+                Tak, zakończ wizytę
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </AppLayout>
   );
 };

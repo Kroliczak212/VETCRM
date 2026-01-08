@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import type { Pagination } from '@/types/common';
 
 export interface Appointment {
   id: number;
@@ -22,7 +23,7 @@ export interface Appointment {
   vaccination_type_name?: string;
   location?: string;
   services?: AppointmentService[];
-  medical_record?: any;
+  medical_record?: MedicalRecord;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,27 @@ export interface AppointmentService {
   quantity: number;
   unit_price: number;
   total: number;
+}
+
+export interface MedicalFile {
+  id: number;
+  medical_record_id: number;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  uploaded_at: string;
+}
+
+export interface MedicalRecord {
+  id: number;
+  appointment_id: number;
+  diagnosis?: string;
+  treatment?: string;
+  prescription?: string;
+  notes?: string;
+  files?: MedicalFile[];
+  created_at: string;
 }
 
 export interface CreateAppointmentData {
@@ -87,7 +109,6 @@ export interface RescheduleRequest {
   reviewed_by?: number;
   reviewed_at?: string;
   rejection_reason?: string;
-  // Joined data
   appointment_reason?: string;
   client_name?: string;
   client_phone?: string;
@@ -105,6 +126,24 @@ export interface RescheduleRequestResponse {
   status: 'pending';
 }
 
+export interface TimeRange {
+  startTime: string | null;
+  endTime: string | null;
+  hasDoctors: boolean;
+}
+
+export interface DoctorTimeRange {
+  startTime: string | null;
+  endTime: string | null;
+  isWorking: boolean;
+}
+
+export interface DoctorSlotInfo {
+  doctorId: number;
+  doctorName: string;
+  isAvailable: boolean;
+}
+
 class AppointmentsService {
   async getAll(params?: {
     page?: number;
@@ -114,7 +153,7 @@ class AppointmentsService {
     status?: string;
     date?: string;
   }) {
-    const { data } = await apiClient.get<{ data: Appointment[]; pagination: any }>('/appointments', { params });
+    const { data } = await apiClient.get<{ data: Appointment[]; pagination: Pagination }>('/appointments', { params });
     return data;
   }
 
@@ -133,8 +172,20 @@ class AppointmentsService {
     return data;
   }
 
-  async updateStatus(id: number, status: Appointment['status']) {
-    const { data } = await apiClient.patch<{ message: string; appointment: Appointment }>(`/appointments/${id}/status`, { status });
+  async updateStatus(id: number, status: Appointment['status'], vaccinationPerformed?: boolean) {
+    const { data } = await apiClient.patch<{
+      message: string;
+      appointment: Appointment & {
+        vaccinationCreated?: boolean;
+        vaccinationId?: number;
+        vaccinationError?: string;
+        medicalRecordCreated?: boolean;
+        medicalRecordId?: number;
+      }
+    }>(`/appointments/${id}/status`, {
+      status,
+      vaccinationPerformed
+    });
     return data;
   }
 
@@ -187,14 +238,55 @@ class AppointmentsService {
     );
     return data;
   }
+
+  async getTimeRangeForAllDoctors(date: string) {
+    const { data } = await apiClient.get<{ timeRange: TimeRange }>(
+      '/appointments/time-range-all-doctors',
+      { params: { date } }
+    );
+    return data.timeRange;
+  }
+
+  async getDoctorsForSlot(date: string, time: string) {
+    const { data } = await apiClient.get<{ doctors: DoctorSlotInfo[] }>(
+      '/appointments/doctors-for-slot',
+      { params: { date, time } }
+    );
+    return data.doctors;
+  }
+
+  async getDoctorTimeRange(doctorId: number, date: string) {
+    const { data } = await apiClient.get<{ timeRange: DoctorTimeRange }>(
+      '/appointments/doctor-time-range',
+      { params: { doctorId, date } }
+    );
+    return data.timeRange;
+  }
+
+  /**
+   * Force reschedule appointment by staff (receptionist/admin)
+   * Directly changes the appointment time and notifies the client via email
+   */
+  async forceReschedule(id: number, newScheduledAt: string, reason?: string, newDoctorId?: number) {
+    const { data } = await apiClient.post<{
+      message: string;
+      appointmentId: number;
+      oldTime: string;
+      newTime: string;
+      doctorChanged: boolean;
+      newDoctorId: number | null;
+      newDoctorName: string | null;
+      clientNotified: boolean;
+    }>(`/appointments/${id}/force-reschedule`, {
+      newScheduledAt,
+      reason,
+      newDoctorId,
+    });
+    return data;
+  }
 }
 
 export const appointmentsService = new AppointmentsService();
-
-/**
- * Named exports for direct function calls
- * Backend automatically filters based on JWT token for clients
- */
 
 export const getAppointments = async (params?: {
   page?: number;

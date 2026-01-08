@@ -21,10 +21,10 @@ const menuItems = {
   admin: [
     { icon: Home, label: "Dashboard", path: "/admin/dashboard" },
     { icon: Users, label: "Personel", path: "/admin/staff" },
-    { icon: ClipboardList, label: "Cennik", path: "/admin/pricing" },
+    { icon: Clock, label: "Godziny pracy", path: "/admin/working-hours" },
+    { icon: ClipboardCheck, label: "Wnioski grafików", path: "/admin/schedule-approvals" },
     { icon: MessageSquare, label: "Powody wizyt", path: "/admin/appointment-reasons" },
     { icon: Syringe, label: "Typy szczepień", path: "/admin/vaccination-types" },
-    { icon: Settings, label: "Ustawienia", path: "/admin/settings" },
   ],
   receptionist: [
     { icon: Home, label: "Dashboard", path: "/receptionist/dashboard" },
@@ -33,7 +33,6 @@ const menuItems = {
     { icon: CalendarClock, label: "Zmiany Terminów", path: "/receptionist/reschedule-requests" },
     { icon: Users, label: "Klienci", path: "/receptionist/clients" },
     { icon: Stethoscope, label: "Lekarze", path: "/receptionist/doctors" },
-    { icon: FileText, label: "Rachunki", path: "/receptionist/invoices" },
   ],
   doctor: [
     { icon: Home, label: "Dashboard", path: "/doctor/dashboard" },
@@ -54,7 +53,7 @@ export function AppSidebar({ role }: AppSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { state } = useSidebar();
-  
+
   const items = menuItems[role];
   const isCollapsed = state === "collapsed";
 

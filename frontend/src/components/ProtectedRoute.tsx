@@ -10,15 +10,12 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const user = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
 
-  // Not authenticated - redirect to login
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user role is allowed
   if (allowedRoles && allowedRoles.length > 0) {
     if (!allowedRoles.includes(user.role_name)) {
-      // User authenticated but wrong role - redirect to their proper dashboard
       const roleRoutes: Record<string, string> = {
         admin: '/admin',
         receptionist: '/receptionist',

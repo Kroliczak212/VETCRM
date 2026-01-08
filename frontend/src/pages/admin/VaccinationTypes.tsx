@@ -20,11 +20,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 const SPECIES_OPTIONS = [
-  { value: 'wszystkie', label: 'Wszystkie gatunki' },
   { value: 'pies', label: 'Pies' },
   { value: 'kot', label: 'Kot' },
-  { value: 'gryzoń', label: 'Gryzoń' },
-  { value: 'ptak', label: 'Ptak' },
   { value: 'inne', label: 'Inne' },
 ];
 
@@ -36,7 +33,7 @@ const VaccinationTypes = () => {
 
   const [newType, setNewType] = useState<Partial<CreateVaccinationTypeData>>({
     name: "",
-    species: "wszystkie",
+    species: "pies",
     description: "",
     recommendedIntervalMonths: undefined,
     isRequired: false,
@@ -45,13 +42,11 @@ const VaccinationTypes = () => {
 
   const [editType, setEditType] = useState<Partial<UpdateVaccinationTypeData>>({});
 
-  // Fetch vaccination types
   const { data: typesData, isLoading } = useQuery({
     queryKey: ['vaccination-types', 'admin'],
     queryFn: () => vaccinationTypesService.getAll({ limit: 100 }),
   });
 
-  // Create type mutation
   const createTypeMutation = useMutation({
     mutationFn: (data: CreateVaccinationTypeData) => vaccinationTypesService.create(data),
     onSuccess: () => {
@@ -60,7 +55,7 @@ const VaccinationTypes = () => {
       setIsDialogOpen(false);
       setNewType({
         name: "",
-        species: "wszystkie",
+        species: "pies",
         description: "",
         recommendedIntervalMonths: undefined,
         isRequired: false,
@@ -72,7 +67,6 @@ const VaccinationTypes = () => {
     },
   });
 
-  // Update type mutation
   const updateTypeMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateVaccinationTypeData }) =>
       vaccinationTypesService.update(id, data),
@@ -86,7 +80,6 @@ const VaccinationTypes = () => {
     },
   });
 
-  // Delete (deactivate) type mutation
   const deleteTypeMutation = useMutation({
     mutationFn: (id: number) => vaccinationTypesService.delete(id),
     onSuccess: () => {
@@ -133,7 +126,6 @@ const VaccinationTypes = () => {
     }
   };
 
-  // Sort by species, then display_order
   const sortedTypes = [...types].sort((a, b) => {
     if (a.species !== b.species) {
       return a.species.localeCompare(b.species);
@@ -141,7 +133,6 @@ const VaccinationTypes = () => {
     return a.display_order - b.display_order;
   });
 
-  // Group by species
   const groupedTypes = sortedTypes.reduce((acc: any, type: VaccinationType) => {
     if (!acc[type.species]) {
       acc[type.species] = [];
@@ -323,7 +314,6 @@ const VaccinationTypes = () => {
           </p>
         )}
 
-        {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
             <DialogHeader>

@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import type { Pagination } from '@/types/common';
 
 export interface Client {
   id: number;
@@ -46,7 +47,7 @@ export interface UpdateClientData {
 
 class ClientsService {
   async getAll(params?: { page?: number; limit?: number; search?: string }) {
-    const { data } = await apiClient.get<{ data: Client[]; pagination: any }>('/clients', { params });
+    const { data } = await apiClient.get<{ data: Client[]; pagination: Pagination }>('/clients', { params });
     return data;
   }
 

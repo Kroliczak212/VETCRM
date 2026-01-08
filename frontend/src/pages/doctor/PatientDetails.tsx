@@ -12,13 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, PawPrint, User, Phone, Calendar, Activity, Loader2, Syringe, ChevronDown, FileText } from "lucide-react";
+import { ArrowLeft, Plus, PawPrint, User, Phone, Calendar, Activity, Loader2, Syringe, ChevronDown, FileText, Download, Eye, File, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { petsService } from "@/services/pets.service";
 import { appointmentsService } from "@/services/appointments.service";
 import { medicalRecordsService, type CreateMedicalRecordData } from "@/services/medical-records.service";
 import { clientsService } from "@/services/clients.service";
 import { vaccinationsService, type CreateVaccinationData, type Vaccination } from "@/services/vaccinations.service";
+import { vaccinationTypesService } from "@/services/vaccination-types.service";
 import { authService } from "@/services/auth.service";
 
 export default function PatientDetails() {
@@ -29,21 +30,18 @@ export default function PatientDetails() {
   const [isRecordDialogOpen, setIsRecordDialogOpen] = useState(false);
   const [isVaccinationDialogOpen, setIsVaccinationDialogOpen] = useState(false);
 
-  // Fetch pet data
   const { data: patient, isLoading: petLoading } = useQuery({
     queryKey: ['pet', id],
     queryFn: () => petsService.getById(Number(id)),
     enabled: !!id,
   });
 
-  // Fetch owner data
   const { data: owner } = useQuery({
     queryKey: ['client', patient?.owner_user_id],
     queryFn: () => clientsService.getById(patient!.owner_user_id),
     enabled: !!patient?.owner_user_id,
   });
 
-  // Fetch appointments for this pet (which contain medical records)
   const { data: appointmentsData } = useQuery({
     queryKey: ['appointments', 'pet', id],
     queryFn: () => appointmentsService.getAll({ petId: Number(id), limit: 100 }),
@@ -52,7 +50,6 @@ export default function PatientDetails() {
 
   const appointments = appointmentsData?.data || [];
 
-  // Fetch vaccinations for this pet
   const { data: vaccinationsData } = useQuery({
     queryKey: ['vaccinations', 'pet', id],
     queryFn: () => vaccinationsService.getAll({ petId: Number(id), limit: 100 }),
@@ -61,7 +58,17 @@ export default function PatientDetails() {
 
   const vaccinations = vaccinationsData?.data || [];
 
-  // Filter upcoming confirmed appointments
+  const { data: vaccinationTypesData } = useQuery({
+    queryKey: ['vaccinationTypes', patient?.species],
+    queryFn: () => vaccinationTypesService.getAll({
+      species: patient!.species,
+      isActive: true
+    }),
+    enabled: !!patient?.species,
+  });
+
+  const vaccinationTypes = vaccinationTypesData?.data || [];
+
   const upcomingAppointments = appointments
     .filter(apt => {
       const isConfirmed = apt.status === 'confirmed';
@@ -70,7 +77,6 @@ export default function PatientDetails() {
     })
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-  // Filter completed appointments (medical history)
   const completedAppointments = appointments
     .filter(apt => apt.status === 'completed')
     .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
@@ -83,7 +89,7 @@ export default function PatientDetails() {
   });
 
   const [newVaccination, setNewVaccination] = useState({
-    vaccineName: "",
+    vaccinationTypeId: 0,
     vaccinationDate: new Date().toISOString().split('T')[0],
     nextDueDate: "",
     batchNumber: "",
@@ -91,7 +97,6 @@ export default function PatientDetails() {
     notes: "",
   });
 
-  // Create medical record mutation
   const createRecordMutation = useMutation({
     mutationFn: (data: CreateMedicalRecordData) => medicalRecordsService.create(data),
     onSuccess: () => {
@@ -125,7 +130,6 @@ export default function PatientDetails() {
     createRecordMutation.mutate(newRecord);
   };
 
-  // Create vaccination mutation
   const createVaccinationMutation = useMutation({
     mutationFn: (data: CreateVaccinationData) => vaccinationsService.create(data),
     onSuccess: () => {
@@ -136,7 +140,7 @@ export default function PatientDetails() {
       });
       setIsVaccinationDialogOpen(false);
       setNewVaccination({
-        vaccineName: "",
+        vaccinationTypeId: 0,
         vaccinationDate: new Date().toISOString().split('T')[0],
         nextDueDate: "",
         batchNumber: "",
@@ -154,10 +158,10 @@ export default function PatientDetails() {
   });
 
   const handleAddVaccination = () => {
-    if (!newVaccination.vaccineName || !newVaccination.vaccinationDate) {
+    if (!newVaccination.vaccinationTypeId || !newVaccination.vaccinationDate) {
       toast({
         title: "Błąd",
-        description: "Wypełnij wszystkie wymagane pola (nazwa szczepionki i data)",
+        description: "Wypełnij wszystkie wymagane pola (typ szczepionki i data)",
         variant: "destructive",
       });
       return;
@@ -165,7 +169,7 @@ export default function PatientDetails() {
 
     const vaccinationData: CreateVaccinationData = {
       petId: Number(id),
-      vaccineName: newVaccination.vaccineName,
+      vaccinationTypeId: newVaccination.vaccinationTypeId,
       vaccinationDate: newVaccination.vaccinationDate,
       nextDueDate: newVaccination.nextDueDate || undefined,
       batchNumber: newVaccination.batchNumber || undefined,
@@ -201,6 +205,41 @@ export default function PatientDetails() {
     return { label: "Aktualne", variant: "default" as const };
   };
 
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) return Image;
+    return File;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleDownloadFile = async (fileId: number) => {
+    try {
+      await medicalRecordsService.downloadFile(fileId);
+    } catch (error: any) {
+      toast({
+        title: "Błąd",
+        description: error.response?.data?.error || "Nie udało się pobrać pliku",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePreviewFile = async (fileId: number) => {
+    try {
+      await medicalRecordsService.previewFile(fileId);
+    } catch (error: any) {
+      toast({
+        title: "Błąd",
+        description: error.response?.data?.error || "Nie udało się otworzyć podglądu pliku",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (petLoading) {
     return (
       <AppLayout role="doctor">
@@ -229,8 +268,6 @@ export default function PatientDetails() {
     );
   }
 
-  // Find completed appointments without medical records for the dropdown
-  // Only allow doctor to add records to their own appointments
   const currentUser = authService.getCurrentUser();
   const completedAppointmentsWithoutRecords = completedAppointments.filter(apt =>
     !apt.medical_record && apt.doctor_user_id === currentUser?.id
@@ -266,12 +303,34 @@ export default function PatientDetails() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label>Nazwa szczepionki *</Label>
-                    <Input
-                      value={newVaccination.vaccineName}
-                      onChange={(e) => setNewVaccination({ ...newVaccination, vaccineName: e.target.value })}
-                      placeholder="np. Wścieklizna, DHPP, FeLV..."
-                    />
+                    <Label>Typ szczepienia *</Label>
+                    <Select
+                      value={newVaccination.vaccinationTypeId.toString()}
+                      onValueChange={(value) => setNewVaccination({ ...newVaccination, vaccinationTypeId: Number(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Wybierz typ szczepienia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vaccinationTypes.length > 0 ? (
+                          vaccinationTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id.toString()}>
+                              {type.name}
+                              {type.recommended_interval_months && ` (co ${type.recommended_interval_months} mies.)`}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="0" disabled>
+                            Brak dostępnych szczepionek dla gatunku {patient?.species}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {vaccinationTypes.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Brak szczepień dla gatunku "{patient?.species}". Skontaktuj się z administratorem.
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -630,10 +689,55 @@ export default function PatientDetails() {
                               <h4 className="text-sm font-semibold mb-1">Leczenie</h4>
                               <p className="text-sm text-muted-foreground">{appointment.medical_record.treatment}</p>
                             </div>
+                            {appointment.medical_record.prescription && (
+                              <div>
+                                <h4 className="text-sm font-semibold mb-1">Recepta</h4>
+                                <p className="text-sm text-muted-foreground">{appointment.medical_record.prescription}</p>
+                              </div>
+                            )}
                             {appointment.medical_record.notes && (
                               <div>
                                 <h4 className="text-sm font-semibold mb-1">Notatki</h4>
                                 <p className="text-sm text-muted-foreground">{appointment.medical_record.notes}</p>
+                              </div>
+                            )}
+                            {appointment.medical_record.files && appointment.medical_record.files.length > 0 && (
+                              <div className="mt-3 pt-3 border-t">
+                                <h4 className="text-sm font-semibold mb-2">Załączone pliki</h4>
+                                <div className="space-y-2">
+                                  {appointment.medical_record.files.map((file: any) => {
+                                    const FileIcon = getFileIcon(file.file_type);
+                                    return (
+                                      <div key={file.id} className="flex items-center justify-between bg-muted/50 p-2 rounded">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                          <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium truncate">{file.file_name}</p>
+                                            <p className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-1 ml-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handlePreviewFile(file.id)}
+                                            title="Podgląd"
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDownloadFile(file.id)}
+                                            title="Pobierz"
+                                          >
+                                            <Download className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             )}
                           </div>

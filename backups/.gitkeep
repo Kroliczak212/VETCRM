@@ -1,0 +1,3 @@
+# Folder na backupy plików i bazy danych.
+# Pliki backup są ignorowane przez .gitignore.
+# Uruchom ./scripts/backup.sh aby utworzyć backup.

@@ -43,14 +43,12 @@ export default function DoctorWorkingHours() {
     sunday: "Niedziela"
   };
 
-  // Fetch working hours for current doctor
   const { data: workingHours, isLoading } = useQuery({
     queryKey: ['working-hours', 'doctor', doctorId],
     queryFn: () => workingHoursService.getByDoctorId(doctorId),
     enabled: !!doctorId,
   });
 
-  // Create working hours mutation
   const createMutation = useMutation({
     mutationFn: (data: { dayOfWeek: DayOfWeek; startTime: string; endTime: string }) =>
       workingHoursService.create({ doctorUserId: doctorId, ...data }),
@@ -69,7 +67,6 @@ export default function DoctorWorkingHours() {
     },
   });
 
-  // Update working hours mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, isActive, startTime, endTime }: { id: number; isActive?: boolean; startTime?: string; endTime?: string }) =>
       workingHoursService.update(id, { isActive, startTime, endTime }),
@@ -88,7 +85,6 @@ export default function DoctorWorkingHours() {
     },
   });
 
-  // Delete working hours mutation
   const deleteMutation = useMutation({
     mutationFn: (id: number) => workingHoursService.delete(id),
     onSuccess: () => {

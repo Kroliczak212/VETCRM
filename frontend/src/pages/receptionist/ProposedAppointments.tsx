@@ -13,13 +13,11 @@ import { pl } from "date-fns/locale";
 const ProposedAppointments = () => {
   const queryClient = useQueryClient();
 
-  // Fetch proposed appointments
   const { data: proposedData, isLoading } = useQuery({
     queryKey: ['appointments', 'proposed'],
     queryFn: () => appointmentsService.getAll({ status: 'proposed', limit: 100 }),
   });
 
-  // Mutation to update appointment status
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: 'confirmed' | 'cancelled' }) =>
       appointmentsService.updateStatus(id, status),

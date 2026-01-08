@@ -12,7 +12,6 @@ class NotificationEvents extends EventEmitter {
   }
 }
 
-// Export singleton instance
 const notificationEvents = new NotificationEvents();
 
 /**
@@ -32,12 +31,6 @@ const EVENTS = {
   RESCHEDULE_REQUESTED: 'reschedule:requested',
   RESCHEDULE_APPROVED: 'reschedule:approved',
   RESCHEDULE_REJECTED: 'reschedule:rejected',
-
-  // Vaccination events
-  VACCINATION_REMINDER: 'vaccination:reminder',
-
-  // Invoice events (future)
-  INVOICE_CREATED: 'invoice:created',
 };
 
 module.exports = {
