@@ -281,6 +281,38 @@ CREATE TABLE `email_queue` (
 -- --------------------------------------------------------
 
 --
+-- Struktura tabeli dla tabeli `password_reset_tokens`
+--
+
+CREATE TABLE `password_reset_tokens` (
+  `id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `token` varchar(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura tabeli dla tabeli `token_blacklist`
+--
+
+CREATE TABLE `token_blacklist` (
+  `id` int NOT NULL,
+  `token_jti` varchar(255) NOT NULL,
+  `user_id` int NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `reason` varchar(100) DEFAULT NULL,
+  `revoked_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struktura tabeli dla tabeli `penalties`
 --
 
@@ -679,6 +711,24 @@ ALTER TABLE `email_queue`
   ADD KEY `idx_email_queue_next_retry` (`next_retry_at`);
 
 --
+-- Indeksy dla tabeli `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `idx_token` (`token`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_expires_at` (`expires_at`);
+
+--
+-- Indeksy dla tabeli `token_blacklist`
+--
+ALTER TABLE `token_blacklist`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `idx_token_jti` (`token_jti`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_expires_at` (`expires_at`);
+
+--
 -- Indeksy dla tabeli `penalties`
 --
 ALTER TABLE `penalties`
@@ -820,6 +870,18 @@ ALTER TABLE `email_queue`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT dla tabeli `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT dla tabeli `token_blacklist`
+--
+ALTER TABLE `token_blacklist`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT dla tabeli `penalties`
 --
 ALTER TABLE `penalties`
@@ -932,6 +994,18 @@ ALTER TABLE `medical_records`
 --
 ALTER TABLE `notifications`
   ADD CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Ograniczenia dla tabeli `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD CONSTRAINT `fk_password_reset_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Ograniczenia dla tabeli `token_blacklist`
+--
+ALTER TABLE `token_blacklist`
+  ADD CONSTRAINT `fk_token_blacklist_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Ograniczenia dla tabeli `penalties`
