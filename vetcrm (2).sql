@@ -207,8 +207,10 @@ INSERT INTO `doctor_details` (`user_id`, `specialization`, `license_number`, `ex
 CREATE TABLE `medical_files` (
   `id` int NOT NULL,
   `medical_record_id` int NOT NULL,
+  `file_name` varchar(255) DEFAULT NULL,
   `file_path` varchar(255) NOT NULL,
   `file_type` varchar(50) NOT NULL,
+  `file_size` int UNSIGNED DEFAULT '0',
   `uploaded_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -269,13 +271,13 @@ CREATE TABLE `email_queue` (
   `to_email` varchar(255) NOT NULL,
   `subject` varchar(500) NOT NULL,
   `html_body` text NOT NULL,
-  `status` enum('pending','sent','failed') NOT NULL DEFAULT 'pending',
-  `retry_count` int NOT NULL DEFAULT '0',
-  `max_retries` int NOT NULL DEFAULT '3',
-  `next_retry_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `sent_at` datetime DEFAULT NULL,
-  `error_message` text
+  `retry_count` int DEFAULT '0',
+  `max_retries` int DEFAULT '3',
+  `status` enum('pending','sent','failed') DEFAULT 'pending',
+  `error_message` text,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `next_retry_at` timestamp NULL DEFAULT NULL,
+  `sent_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -286,14 +288,14 @@ CREATE TABLE `email_queue` (
 
 CREATE TABLE `password_reset_tokens` (
   `id` int NOT NULL,
-  `user_id` int NOT NULL,
-  `token` varchar(64) NOT NULL,
-  `expires_at` datetime NOT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `used_at` datetime DEFAULT NULL,
-  `cancelled_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `user_id` int NOT NULL COMMENT 'User requesting password reset',
+  `token` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Secure random token',
+  `expires_at` timestamp NOT NULL COMMENT 'Token expiration time',
+  `used_at` timestamp NULL DEFAULT NULL COMMENT 'When token was used',
+  `cancelled_at` timestamp NULL DEFAULT NULL COMMENT 'When token was cancelled',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When token was created',
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'IP address of requester'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -303,12 +305,12 @@ CREATE TABLE `password_reset_tokens` (
 
 CREATE TABLE `token_blacklist` (
   `id` int NOT NULL,
-  `token_jti` varchar(255) NOT NULL,
-  `user_id` int NOT NULL,
-  `expires_at` datetime NOT NULL,
-  `reason` varchar(100) DEFAULT NULL,
-  `revoked_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `token_jti` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'JWT ID',
+  `user_id` int NOT NULL COMMENT 'User who owns this token',
+  `revoked_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When the token was revoked',
+  `expires_at` timestamp NOT NULL COMMENT 'When the token expires',
+  `reason` enum('logout','password_change','security','admin_action') COLLATE utf8mb4_unicode_ci DEFAULT 'logout'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -507,7 +509,9 @@ CREATE TABLE `users` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active` tinyint(1) DEFAULT '1' COMMENT 'Whether user account is active (only admin can change)',
   `must_change_password` tinyint(1) DEFAULT '0' COMMENT 'Forces user to change password on next login',
-  `password_changed_at` datetime DEFAULT NULL COMMENT 'Timestamp of last password change'
+  `password_changed_at` datetime DEFAULT NULL COMMENT 'Timestamp of last password change',
+  `deleted_at` datetime DEFAULT NULL COMMENT 'Timestamp when user was soft-deleted',
+  `deleted_by_user_id` int DEFAULT NULL COMMENT 'ID of admin who deleted this user'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -691,7 +695,7 @@ ALTER TABLE `medical_files`
 --
 ALTER TABLE `medical_records`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_med_records_appt` (`appointment_id`),
+  ADD UNIQUE KEY `idx_appointment_id` (`appointment_id`),
   ADD KEY `fk_med_records_creator` (`created_by_user_id`);
 
 --
@@ -707,16 +711,17 @@ ALTER TABLE `notifications`
 --
 ALTER TABLE `email_queue`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_email_queue_status` (`status`),
-  ADD KEY `idx_email_queue_next_retry` (`next_retry_at`);
+  ADD KEY `idx_status_retry` (`status`,`next_retry_at`),
+  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Indeksy dla tabeli `password_reset_tokens`
 --
 ALTER TABLE `password_reset_tokens`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `idx_token` (`token`),
-  ADD KEY `idx_user_id` (`user_id`),
+  ADD UNIQUE KEY `token` (`token`),
+  ADD KEY `idx_token` (`token`),
+  ADD KEY `idx_user_expires` (`user_id`,`expires_at`),
   ADD KEY `idx_expires_at` (`expires_at`);
 
 --
@@ -724,7 +729,8 @@ ALTER TABLE `password_reset_tokens`
 --
 ALTER TABLE `token_blacklist`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `idx_token_jti` (`token_jti`),
+  ADD UNIQUE KEY `token_jti` (`token_jti`),
+  ADD KEY `idx_token_jti` (`token_jti`),
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_expires_at` (`expires_at`);
 
@@ -786,10 +792,12 @@ ALTER TABLE `settings`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `email` (`email`),
+  ADD UNIQUE KEY `idx_email_active` (`email`,`deleted_at`),
   ADD KEY `fk_users_role` (`role_id`),
   ADD KEY `idx_users_active` (`is_active`),
-  ADD KEY `idx_users_password_status` (`must_change_password`,`is_active`);
+  ADD KEY `idx_users_password_status` (`must_change_password`,`is_active`),
+  ADD KEY `idx_deleted_at` (`deleted_at`),
+  ADD KEY `fk_users_deleted_by` (`deleted_by_user_id`);
 
 --
 -- Indeksy dla tabeli `vaccinations`
@@ -1038,7 +1046,8 @@ ALTER TABLE `schedules`
 -- Ograniczenia dla tabeli `users`
 --
 ALTER TABLE `users`
-  ADD CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_users_deleted_by` FOREIGN KEY (`deleted_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Ograniczenia dla tabeli `vaccinations`
